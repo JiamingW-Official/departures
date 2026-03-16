@@ -1,0 +1,10 @@
+{
+  "name": "departures",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "flightradarapi": "^1.4.0"
+  }
+}

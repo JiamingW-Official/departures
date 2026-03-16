@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>DEPARTURES</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="board">
+ <div id="hdr">
+  <div id="hdr-left">
+   <div id="hdr-top"><span id="live-dot"></span><div id="ap-iata"></div><span id="ap-name"></span></div>
+   <div id="ap-sub"></div>
+  </div>
+  <div id="hdr-right">
+   <div id="clock"></div>
+   <div id="hdr-meta"><span id="tz-label"></span><span id="date-info"></span></div>
+   <div id="pginfo"></div>
+  </div>
+ </div>
+ <div id="flights">
+  <div class="col" id="colL"></div>
+  <div class="col-divider"></div>
+  <div class="col" id="colR"></div>
+ </div>
+ <div id="nav"><div id="nav-fixed"></div><div id="nav-scroll"></div></div>
+</div>
+<div id="search">
+ <div id="search-box">
+  <div id="search-tabs">
+   <button class="stab act" onclick="setSearchTab('ap')">AIRPORTS</button>
+   <button class="stab" onclick="setSearchTab('fl')">FLIGHTS</button>
+  </div>
+  <input id="search-input" type="text" placeholder="AIRPORT CODE OR NAME..." autocomplete="off" spellcheck="false">
+  <div id="search-results"></div>
+  <div id="search-hint">&uarr;&darr; page &ensp; &larr;&rarr; airports &ensp; / search &ensp; S fav &ensp; N now &ensp; F fullscreen &ensp; M sound</div>
+ </div>
+</div>
+<script src="js/data.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

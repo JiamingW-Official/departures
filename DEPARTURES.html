@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>DEPARTURES</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#14110a}
+body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:column}
+
+:root{
+  /* Width: 38 chars/col × 2 + gaps + 1px cell-gaps(~74px) + center + pad */
+  --cw:clamp(13px, calc((100vw - 84px) / 84), 30px);
+  --rows:18;
+  --ch:calc((100vh - 88px) / var(--rows) - 3px);
+  --fs:min(calc(var(--cw) * 0.94), calc(var(--ch) * 0.55));
+  --gap:calc(var(--cw) * 0.52);
+  --gap-sm:calc(var(--cw) * 0.24);
+  --rgap:2px;
+  /* Warm analog palette */
+  --txt:#ddd4b8;
+  --dim:#8a7e62;
+  --flap1:#33302a;--flap2:#302d26;
+  --flap3:#2e2b24;--flap4:#2b2820;
+  --seam:#18150e;
+  --board:#1a1710;--frame:#1e1b14;--deep:#100e08;--border:#0c0a06;
+}
+
+#board{flex:1;display:flex;flex-direction:column;background:var(--frame);overflow:hidden}
+
+/* Header */
+#hdr{display:flex;justify-content:space-between;align-items:flex-end;
+  padding:clamp(6px,1vh,16px) clamp(10px,1.2vw,28px) clamp(5px,.8vh,12px);
+  flex-shrink:0;background:var(--board);border-bottom:2px solid var(--border)}
+#ap-name{font-size:clamp(12px,1.2vw,22px);font-weight:700;letter-spacing:clamp(3px,.4vw,7px);color:var(--txt)}
+#ap-sub{font-size:clamp(7px,.5vw,10px);letter-spacing:clamp(3px,.4vw,7px);color:var(--dim);margin-top:2px}
+#clock{font-size:clamp(16px,1.6vw,32px);font-weight:700;letter-spacing:clamp(2px,.3vw,5px);
+  color:#e8dfc8;font-variant-numeric:tabular-nums}
+#pginfo{font-size:clamp(7px,.45vw,9px);color:#5a5240;letter-spacing:2px;text-align:right;margin-top:2px}
+
+/* Flights area — wider center gap */
+#flights{flex:1;display:flex;gap:calc(var(--cw)*1.4);
+  padding:calc(var(--cw)*.2) calc(var(--cw)*.25) calc(var(--cw)*.1);
+  overflow:hidden;background:var(--deep)}
+.col{flex:1;display:flex;flex-direction:column;gap:var(--rgap);overflow:hidden}
+
+/* Column header */
+.col-hdr{display:flex;gap:1px;flex-shrink:0;margin-bottom:2px}
+.hcell{width:var(--cw);height:calc(var(--cw)*.65);display:flex;align-items:center;justify-content:center;
+  font-size:calc(var(--cw)*.36);letter-spacing:1px;color:#6a6048;background:var(--board)}
+
+/* Flight row */
+.frow{display:flex;gap:1px;flex-shrink:0}
+
+/* ═══ SPLIT-FLAP CELL ═══ */
+.cell{
+  width:var(--cw);height:var(--ch);
+  position:relative;perspective:calc(var(--cw)*6);
+  background:var(--deep);flex-shrink:0;
+}
+.cell .front{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:var(--fs);font-weight:700;color:var(--txt);
+  background:linear-gradient(to bottom,
+    var(--flap1) 0%,var(--flap2) 47.5%,
+    var(--seam) 47.5%,var(--seam) 52.5%,
+    var(--flap3) 52.5%,var(--flap4) 100%);
+  border-radius:1.5px;letter-spacing:0;
+  text-shadow:0 1px 2px rgba(0,0,0,.4),0 0 4px rgba(255,240,200,.04);
+  overflow:hidden;line-height:1;
+}
+.cell .front::after{
+  content:'';position:absolute;left:0;right:0;top:50%;
+  height:calc(var(--cw)*.09 + .5px);transform:translateY(-50%);
+  background:linear-gradient(to bottom,rgba(10,8,4,.8),rgba(10,8,4,.3));
+  box-shadow:0 1px 0 rgba(255,240,200,.025);pointer-events:none;z-index:5;
+}
+.cell .front::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:calc(var(--cw)*.2);
+  background:linear-gradient(to bottom,rgba(10,8,4,.35),transparent);
+  pointer-events:none;z-index:4;border-radius:1.5px 1.5px 0 0;
+}
+.cell::after{
+  content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:rgba(255,240,200,.018);pointer-events:none;z-index:4;
+}
+
+/* Flip layers */
+.cell .flip-top,.cell .flip-bot{
+  position:absolute;left:0;right:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:var(--fs);font-weight:700;color:var(--txt);
+  overflow:hidden;backface-visibility:hidden;
+  border-radius:1.5px;z-index:10;
+  text-shadow:0 1px 2px rgba(0,0,0,.4),0 0 4px rgba(255,240,200,.04);
+  line-height:1;
+}
+.cell .flip-top{top:0;height:50%;background:linear-gradient(to bottom,var(--flap1),var(--flap2));
+  transform-origin:bottom center;box-shadow:0 2px 6px -1px rgba(0,0,0,.55)}
+.cell .flip-bot{top:50%;height:50%;background:linear-gradient(to bottom,var(--flap3),var(--flap4));transform-origin:top center}
+.cell .flip-shadow{position:absolute;left:-2px;right:-2px;top:50%;height:0;
+  background:rgba(0,0,0,.45);filter:blur(3px);z-index:8;pointer-events:none;border-radius:50%}
+
+/* Status colors */
+.c-on .front{color:var(--txt)}
+.c-bo .front{color:#4cc468}
+.c-de .front{color:#d85040}
+.c-go .front{color:#5898d0}
+@keyframes breathG{0%,100%{opacity:1;text-shadow:0 0 6px rgba(76,196,104,.5)}50%{opacity:.32;text-shadow:none}}
+@keyframes breathR{0%,100%{opacity:1;text-shadow:0 0 6px rgba(216,80,64,.5)}50%{opacity:.36;text-shadow:none}}
+@keyframes breathB{0%,100%{opacity:1;text-shadow:0 0 6px rgba(88,152,208,.5)}50%{opacity:.36;text-shadow:none}}
+.bk-g .front{animation:breathG 1.8s ease-in-out infinite}
+.bk-r .front{animation:breathR 2.1s ease-in-out infinite}
+.bk-b .front{animation:breathB 2.3s ease-in-out infinite}
+
+.gap{width:var(--gap);flex-shrink:0}
+.gap-sm{width:var(--gap-sm);flex-shrink:0}
+
+/* Nav */
+#nav{display:flex;align-items:center;gap:clamp(3px,.25vw,5px);
+  padding:clamp(4px,.5vh,8px) clamp(8px,.8vw,20px);flex-shrink:0;
+  overflow-x:auto;scrollbar-width:none;background:var(--board);border-top:2px solid var(--border)}
+#nav::-webkit-scrollbar{display:none}
+#nav button{font-family:'Courier New',monospace;cursor:pointer;outline:none;
+  border:1px solid #3a3428;border-radius:2px;padding:clamp(2px,.25vh,4px) clamp(5px,.5vw,12px);
+  font-size:clamp(7px,.55vw,11px);letter-spacing:1.5px;white-space:nowrap;flex-shrink:0;
+  background:transparent;color:#6a6048;transition:all .15s}
+#nav button:hover{opacity:.65}
+#nav button.act{background:var(--txt);color:#1a1710;border-color:var(--txt);font-weight:700}
+</style>
+</head>
+<body>
+<div id="board">
+ <div id="hdr">
+  <div><div id="ap-name"></div><div id="ap-sub"></div></div>
+  <div style="text-align:right"><div id="clock"></div><div id="pginfo"></div></div>
+ </div>
+ <div id="flights">
+  <div class="col" id="colL"></div>
+  <div class="col" id="colR"></div>
+ </div>
+ <div id="nav"></div>
+</div>
+<script>
+/* ═══ DESTINATIONS ═══ */
+const DS=[
+['NEW YORK-JFK','JFK'],['LOS ANGELES','LAX'],['CHICAGO-OHARE','ORD'],
+['SAN FRANCISCO','SFO'],['MIAMI','MIA'],['TORONTO','YYZ'],
+['MEXICO CITY','MEX'],['SAO PAULO-GRU','GRU'],['BUENOS AIRES','EZE'],
+['LONDON-HEATHROW','LHR'],['PARIS-CDG','CDG'],['FRANKFURT','FRA'],
+['AMSTERDAM','AMS'],['MADRID-BARAJAS','MAD'],['ROMA-FIUMICINO','FCO'],
+['ZUERICH','ZRH'],['ISTANBUL','IST'],['MUENCHEN','MUC'],
+['DUBAI','DXB'],['DOHA','DOH'],['TOKYO-NARITA','NRT'],
+['TOKYO-HANEDA','HND'],['HONG KONG','HKG'],['SINGAPORE','SIN'],
+['SEOUL-INCHEON','ICN'],['BANGKOK','BKK'],['TAIPEI','TPE'],
+['SHANGHAI-PUDONG','PVG'],['BEIJING','PEK'],['DELHI','DEL'],
+['MUMBAI','BOM'],['KUALA LUMPUR','KUL'],['SYDNEY','SYD'],
+['AUCKLAND','AKL'],['JOHANNESBURG','JNB'],['NAIROBI','NBO'],
+['DUBLIN','DUB'],['KOPENHAGEN','CPH'],['OSLO','OSL'],['JAKARTA','CGK'],
+['WARSCHAU','WAW'],['BUDAPEST','BUD'],['PRAG','PRG'],['MANCHESTER','MAN'],
+['BASEL','BSL'],['IZMIR','ADB'],['KAIRO','CAI'],['POZNAN','POZ'],
+['NEWARK','EWR'],['ATLANTA','ATL'],['DALLAS-FTW','DFW'],['HOUSTON','IAH'],
+['SEATTLE','SEA'],['DENVER','DEN'],['BOSTON','BOS'],['CANCUN','CUN'],
+['BOGOTA','BOG'],['SANTIAGO','SCL'],['LIMA','LIM'],['LISBON','LIS'],
+['BARCELONA','BCN'],['VIENNA','VIE'],['BRUSSELS','BRU'],['ATHENS','ATH'],
+['STOCKHOLM','ARN'],['HELSINKI','HEL'],['EDINBURGH','EDI'],
+['ABU DHABI','AUH'],['JEDDAH','JED'],['CASABLANCA','CMN'],
+['ADDIS ABABA','ADD'],['LAGOS','LOS'],['GUANGZHOU','CAN'],
+['OSAKA-KANSAI','KIX'],['MANILA','MNL'],['HO CHI MINH','SGN'],
+['MELBOURNE','MEL'],['PERTH','PER'],['KOLKATA','CCU'],['SAPPORO','CTS'],
+];
+
+/* ═══ AIRPORTS — 76 worldwide ═══ */
+function $A(c,n,al,gp,sd,s){return{c,n,s:s||'DEPARTURES',al:al.split(' '),gp:gp.split(' '),sd}}
+const AP=[
+/* ── EUROPE ── */
+$A('FRA','FRANKFURT AM MAIN','LH UA SQ NH CX TK EK AF BA DL MS XQ LO AI AC SA','A B C Z',1,'ABFLUG · DEPARTURES'),
+$A('LHR','LONDON HEATHROW','BA VS AA UA EK SQ NH LH AF QF DL TK CX AI','A B C',2),
+$A('AMS','AMSTERDAM SCHIPHOL','KL AF LH BA TK EK DL SQ CX UA NH','B C D E F',3,'VERTREK · DEPARTURES'),
+$A('CDG','PARIS CHARLES DE GAULLE','AF BA LH DL AA EK SQ CX NH TK UA','K L M',4,'DEPARTS · DEPARTURES'),
+$A('FCO','ROMA FIUMICINO','AZ BA LH AF EK TK UA DL SQ QR','D E F G',5,'PARTENZE · DEPARTURES'),
+$A('IST','ISTANBUL HAVALIMANI','TK LH BA AF EK QR SQ UA DL KL','A D E F',6,'KALKIŞLAR · DEPARTURES'),
+$A('MUC','MUENCHEN F.J. STRAUSS','LH UA TK EK SQ BA AF NH CX DL','G H K',7,'ABFLUG · DEPARTURES'),
+$A('ZRH','ZUERICH KLOTEN','LX LH BA EK SQ TK UA AF NH','A B D E',8,'ABFLUG · DEPARTURES'),
+$A('MAD','MADRID BARAJAS','IB BA LH AF AA EK TK UA DL SQ','H J K S',9,'SALIDAS · DEPARTURES'),
+$A('BCN','BARCELONA EL PRAT','VY IB BA LH AF EK TK UA','A B C D',35,'SALIDAS · DEPARTURES'),
+$A('LIS','LISBON PORTELA','TP BA LH AF EK TK SQ UA','1 2',36,'PARTIDAS · DEPARTURES'),
+$A('VIE','VIENNA SCHWECHAT','OS LH BA TK EK SQ UA AF','D F G',37,'ABFLUG · DEPARTURES'),
+$A('BRU','BRUSSELS ZAVENTEM','SN LH BA AF TK EK UA DL','A B',38,'VERTREK · DEPARTURES'),
+$A('CPH','COPENHAGEN KASTRUP','SK LH BA AF TK EK SQ UA NH','A B C',39,'AFGANGE · DEPARTURES'),
+$A('OSL','OSLO GARDERMOEN','SK LH BA AF TK EK DL UA','D E F',40,'AVGANGER · DEPARTURES'),
+$A('ARN','STOCKHOLM ARLANDA','SK LH BA AF TK EK SQ UA','2 5',41,'AVGÅNGAR · DEPARTURES'),
+$A('HEL','HELSINKI VANTAA','AY LH BA AF TK EK SQ NH','2',42,'LÄHDÖT · DEPARTURES'),
+$A('DUB','DUBLIN','EI BA LH AF TK EK AA UA DL','1 2',43),
+$A('MAN','MANCHESTER','BA LH AF TK EK SQ UA DL AA','1 2 3',44),
+$A('EDI','EDINBURGH','BA LH AF TK EK UA','G H',45),
+$A('WAW','WARSAW CHOPIN','LO LH BA AF TK EK UA SQ','A B',46,'ODLOTY · DEPARTURES'),
+$A('PRG','PRAGUE VACLAV HAVEL','OK LH BA AF TK EK SQ UA','1 2 C D',47,'ODLETY · DEPARTURES'),
+$A('BUD','BUDAPEST LISZT FERENC','WZ LH BA AF TK EK UA','A B',48,'INDULÁS · DEPARTURES'),
+$A('ATH','ATHENS ELEFTHERIOS','A3 LH BA AF TK EK SQ UA','A B',49,'ΑΝΑΧΩΡΗΣΕΙΣ · DEPARTURES'),
+/* ── MIDDLE EAST ── */
+$A('DXB','DUBAI INTERNATIONAL','EK FZ QR BA LH SQ CX QF AF TK NH','A B C D',10,'DEPARTURES · المغادرة'),
+$A('DOH','HAMAD INTERNATIONAL','QR BA LH EK TK SQ CX AF NH UA','A B C D',11,'DEPARTURES · المغادرة'),
+$A('AUH','ABU DHABI INTL','EY EK BA LH AF TK SQ','A B C',50,'DEPARTURES · المغادرة'),
+$A('JED','JEDDAH K.A.AZIZ','SV EK QR TK BA LH AF','N S',51,'DEPARTURES · المغادرة'),
+/* ── AFRICA ── */
+$A('CAI','CAIRO INTERNATIONAL','MS EK QR TK BA LH AF','1 2 3',52),
+$A('NBO','NAIROBI JKIA','KQ EK QR TK BA LH ET','1 2',53),
+$A('JNB','JOHANNESBURG O.R. TAMBO','SA EK QR BA LH AF TK SQ','A B',54),
+$A('CMN','CASABLANCA MOHAMMED V','AT EK QR TK AF BA LH','1 2',55),
+$A('ADD','ADDIS ABABA BOLE','ET EK TK BA LH AF QR','1 2',56),
+$A('LOS','LAGOS MURTALA MUHAMMED','W3 EK QR TK BA LH ET','D E',57),
+/* ── ASIA ── */
+$A('HND','TOKYO HANEDA  羽田空港','NH JL AA DL UA BA LH AF SQ CX TK EK QF','',12,'出発 · DEPARTURES'),
+$A('NRT','TOKYO NARITA  成田空港','JL NH AA DL UA BA LH AF SQ CX TK EK','1 2 3',13,'出発 · DEPARTURES'),
+$A('PEK','BEIJING CAPITAL  北京首都','CA CZ MU NH JL BA LH AF EK SQ TK UA DL','D E T',14,'出发 · DEPARTURES'),
+$A('PVG','SHANGHAI PUDONG  上海浦東','MU CA CZ NH JL BA LH AF EK SQ TK','1 2',58,'出发 · DEPARTURES'),
+$A('CAN','GUANGZHOU BAIYUN  广州白云','CZ CA MU SQ TK EK BA NH JL','A B',59,'出发 · DEPARTURES'),
+$A('HKG','HONG KONG INTL  香港國際','CX HX BA SQ NH JL QF EK TK LH UA AA','',15,'離港 · DEPARTURES'),
+$A('ICN','SEOUL INCHEON  인천국제','KE OZ NH JL CX SQ UA DL AA LH TK EK','A B C',16,'출발 · DEPARTURES'),
+$A('SIN','SINGAPORE CHANGI','SQ BA QF NH JL CX EK LH AF UA TK KE','A B C D',17),
+$A('BKK','SUVARNABHUMI  สุวรรณภูมิ','TG SQ CX NH JL EK BA LH QR KE QF','C D E F G',18),
+$A('DEL','INDIRA GANDHI INTL','AI UK SQ EK BA LH TK QR NH AF UA','T3',19,'DEPARTURES · प्रस्थान'),
+$A('KUL','KUALA LUMPUR INTL','MH AK SQ CX EK BA LH TK QR','C J',60),
+$A('CGK','JAKARTA SOEKARNO-HATTA','GA SQ CX EK BA LH TK QR NH','D E F',61),
+$A('MNL','MANILA NINOY AQUINO','PR SQ CX EK BA NH JL KE','1 3',62),
+$A('TPE','TAIWAN TAOYUAN  桃園國際','CI BR NH JL SQ CX EK BA LH UA','A B D',63,'出境 · DEPARTURES'),
+$A('KIX','OSAKA KANSAI  関西空港','JL NH SQ CX KE OZ EK TK BA LH','1 2',64,'出発 · DEPARTURES'),
+$A('CTS','SAPPORO NEW CHITOSE  新千歳','NH JL','',65,'出発 · DEPARTURES'),
+$A('SGN','HO CHI MINH TAN SON NHAT','VN SQ CX EK BA TK QR NH JL KE','1 2',66),
+$A('CCU','KOLKATA NETAJI SUBHAS','AI SQ EK BA TK QR','T1 T2',67),
+/* ── AMERICAS ── */
+$A('JFK','NEW YORK J.F. KENNEDY','AA DL UA JL BA EK SQ LH AF CX TK QR NH','A B C',20),
+$A('EWR','NEWARK LIBERTY INTL','UA DL AA JL BA EK SQ LH AF TK NH','A B C',21),
+$A('LAX','LOS ANGELES INTL','UA AA DL SQ CX QF NH JL BA EK LH AF TK','B T',22),
+$A('ORD','CHICAGO O\'HARE','UA AA DL BA LH NH JL TK EK AF SQ','B C H K',23),
+$A('ATL','ATLANTA HARTSFIELD','DL AA UA BA LH AF TK EK SQ','A B C D E F',68),
+$A('SFO','SAN FRANCISCO INTL','UA AA DL SQ CX NH JL BA EK LH','A G',69),
+$A('MIA','MIAMI INTERNATIONAL','AA DL UA BA LH AF IB EK TK','D E F G H J',70),
+$A('DFW','DALLAS FORT WORTH','AA DL UA BA LH QR EK TK','A B C D E',71),
+$A('IAH','HOUSTON G. BUSH','UA DL AA BA LH EK TK NH SQ','A B C D E',72),
+$A('SEA','SEATTLE-TACOMA','DL UA AA BA LH NH SQ CX','A B C D N S',73),
+$A('DEN','DENVER INTERNATIONAL','UA DL AA BA LH TK','A B C',74),
+$A('BOS','BOSTON LOGAN','DL UA AA JL BA EK LH AF TK','A B C E',75),
+$A('YYZ','TORONTO PEARSON','AC WS AA UA DL BA LH AF TK EK NH SQ','D E F',24,'DEPARTURES · DEPARTS'),
+$A('MEX','MEXICO CITY INTL','AM UA AA DL BA LH AF IB TK','1 2',25,'SALIDAS · DEPARTURES'),
+$A('GRU','SAO PAULO GUARULHOS','LA G3 AA DL UA AF BA LH EK TK IB','D E',26,'PARTIDAS · DEPARTURES'),
+$A('EZE','BUENOS AIRES EZEIZA','AR LA AA DL UA BA LH AF IB EK TK','A B C',76),
+$A('BOG','BOGOTA EL DORADO','AV LA AA DL UA BA LH AF IB TK','1',77),
+$A('SCL','SANTIAGO A.M. BENITEZ','LA AA DL UA BA LH AF IB','',78,'SALIDAS · DEPARTURES'),
+$A('LIM','LIMA JORGE CHAVEZ','LA AV AA DL UA BA LH AF IB','',79),
+$A('CUN','CANCUN INTERNATIONAL','AM UA AA DL BA','1 2 3 4',80),
+/* ── OCEANIA ── */
+$A('SYD','SYDNEY KINGSFORD SMITH','QF VA SQ EK CX NH BA UA AA DL LH NZ','A B C',27),
+$A('MEL','MELBOURNE TULLAMARINE','QF VA SQ EK CX NH BA UA LH','1 2',81),
+$A('AKL','AUCKLAND','NZ QF VA SQ EK CX BA','',82),
+$A('PER','PERTH','QF VA SQ EK CX BA','1 2',83),
+];
+
+/* ═══ CONFIG ═══ */
+const W_AL=2,W_FN=4,W_DS=14,W_TM=5,W_GT=4,W_ST=9;
+const WTOT=W_AL+W_FN+W_DS+W_TM+W_GT+W_ST;
+const ALPHA='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ';
+const DRUM='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-:. ';
+let ROWS,PPG;
+
+function calcRows(){
+  const cw=Math.max(13,Math.min(30,(window.innerWidth-84)/84));
+  const ch=cw*1.68;
+  const av=window.innerHeight-88;
+  return Math.min(22,Math.max(10,Math.floor(av/(ch+3))));
+}
+function initLayout(){
+  ROWS=calcRows();PPG=ROWS*2;
+  document.documentElement.style.setProperty('--rows',ROWS);
+}
+
+function p2(n){return n.toString().padStart(2,'0')}
+
+/* ═══ FLIGHT GEN ═══ */
+function genF(ap){
+  const pool=DS.filter(d=>d[1]!==ap.c);
+  const fl=[];let h=5,m=10+(ap.sd*7)%35;
+  const need=PPG*2;
+  for(let i=0;i<need;i++){
+    const al=ap.al[(i*3+ap.sd*2)%ap.al.length];
+    const dt=pool[(i*7+ap.sd*5)%pool.length];
+    const gx=ap.gp.length?ap.gp[(i+ap.sd)%ap.gp.length]:'';
+    const gn=(10+(i*13+ap.sd*7)%55).toString();
+    const fn=(100+(i*37+ap.sd*11)%900).toString().padStart(4,' ');
+    const si=(i*5+ap.sd*3)%16;
+    const s=si<10?'ON TIME':si<12?'BOARDING':si<14?'GATE OPEN':'DELAYED';
+    fl.push({
+      al:al.padEnd(W_AL).substring(0,W_AL),
+      fn:fn.substring(0,W_FN),
+      ds:dt[0].substring(0,W_DS).padEnd(W_DS),
+      tm:p2(h%24)+':'+p2(m%60),
+      gt:(gx+gn).substring(0,W_GT).padEnd(W_GT),
+      st:s.padEnd(W_ST).substring(0,W_ST),
+      sr:s.trim()
+    });
+    m+=5+(i*3+ap.sd)%10;if(m>=60){h++;m-=60}
+  }
+  return fl;
+}
+const EMPTY={al:'  ',fn:'    ',ds:'              ',tm:'     ',gt:'    ',st:'         ',sr:''};
+
+/* ═══ DOM BUILD ═══ */
+function mkC(ch,cls){
+  const d=document.createElement('div');d.className='cell'+(cls?' '+cls:'');
+  /* Subtle per-flap wear variation */
+  const wear=0.965+Math.random()*0.07;
+  d.style.filter='brightness('+wear.toFixed(3)+')';
+  const f=document.createElement('div');f.className='front';f.textContent=ch||' ';
+  d.appendChild(f);d._ch=ch||' ';return d;
+}
+function mkG(c){const d=document.createElement('div');d.className=c||'gap';return d}
+
+function bRow(fl,id){
+  const r=document.createElement('div');r.className='frow';r.id=id;r._cells=[];r._fl=fl;
+  const sc=fl.sr==='BOARDING'?'c-bo':fl.sr==='DELAYED'?'c-de':fl.sr==='GATE OPEN'?'c-go':'c-on';
+  const bk=fl.sr==='BOARDING'?'bk-g':fl.sr==='DELAYED'?'bk-r':fl.sr==='GATE OPEN'?'bk-b':'';
+  function add(s,cl){for(let i=0;i<s.length;i++){const c=mkC(s[i],cl);r.appendChild(c);r._cells.push(c)}}
+  add(fl.al);r.appendChild(mkG('gap-sm'));
+  add(fl.fn);r.appendChild(mkG());
+  add(fl.ds);r.appendChild(mkG());
+  add(fl.tm);r.appendChild(mkG());
+  add(fl.gt);r.appendChild(mkG());
+  add(fl.st,sc+' '+bk);
+  return r;
+}
+function bHdr(){
+  const h=document.createElement('div');h.className='col-hdr';
+  const S=[['AL',W_AL],0,['FLT ',W_FN],1,['DESTINATION   ',W_DS],1,['TIME ',W_TM],1,['GATE',W_GT],1,['STATUS   ',W_ST]];
+  S.forEach(s=>{
+    if(s===0){h.appendChild(mkG('gap-sm'));return}
+    if(s===1){h.appendChild(mkG());return}
+    for(let i=0;i<s[1];i++){const d=document.createElement('div');d.className='hcell';d.textContent=s[0][i]||'';h.appendChild(d)}
+  });return h;
+}
+
+/* ═══ FLIP ENGINE ═══ */
+
+/* Quick flip — fast intermediate during drum cycling, no bounce, minimal shadow */
+function qFlip(cell,nc){
+  if(cell._flipping)return Promise.resolve();
+  cell._flipping=true;
+  const dur=50+Math.random()*20;
+  return new Promise(res=>{
+    const w=cell.offsetWidth,ht=cell.offsetHeight,oc=cell._ch;cell._ch=nc;
+    const fr=cell.querySelector('.front'),col=getComputedStyle(fr).color;
+    const t=document.createElement('div');t.className='flip-top';
+    t.style.cssText=`width:${w}px;height:${ht/2}px;line-height:${ht}px;color:${col}`;t.textContent=oc;
+    const b=document.createElement('div');b.className='flip-bot';
+    b.style.cssText=`width:${w}px;height:${ht/2}px;line-height:0;color:${col}`;b.textContent=nc;
+    cell.appendChild(t);cell.appendChild(b);
+    t.animate([
+      {transform:'rotateX(0deg)',filter:'brightness(1)'},
+      {transform:'rotateX(-90deg)',filter:'brightness(.15)'}
+    ],{duration:dur*.4,easing:'linear',fill:'forwards'}).onfinish=()=>{
+      t.remove();fr.textContent=nc;
+      b.animate([
+        {transform:'rotateX(90deg)',filter:'brightness(.1)'},
+        {transform:'rotateX(0deg)',filter:'brightness(1)'}
+      ],{duration:dur*.6,easing:'ease-out',fill:'forwards'}).onfinish=()=>{
+        b.remove();cell._flipping=false;res();
+      };
+    };
+  });
+}
+
+/* Final flip — pronounced mechanical bounce + shadow element */
+function fFlip(cell,nc,dur){
+  if(cell._flipping||cell._ch===nc)return Promise.resolve();
+  cell._flipping=true;
+  dur=dur||(220+Math.random()*80);
+  return new Promise(res=>{
+    const w=cell.offsetWidth,ht=cell.offsetHeight,oc=cell._ch;cell._ch=nc;
+    const fr=cell.querySelector('.front'),col=getComputedStyle(fr).color;
+    /* Top half — old character falls forward */
+    const t=document.createElement('div');t.className='flip-top';
+    t.style.cssText=`width:${w}px;height:${ht/2}px;line-height:${ht}px;color:${col}`;t.textContent=oc;
+    /* Bottom half — new character swings in */
+    const b=document.createElement('div');b.className='flip-bot';
+    b.style.cssText=`width:${w}px;height:${ht/2}px;line-height:0;color:${col}`;b.textContent=nc;
+    /* Shadow cast by falling flap */
+    const sh=document.createElement('div');sh.className='flip-shadow';
+    cell.appendChild(t);cell.appendChild(b);cell.appendChild(sh);
+    /* Animate shadow: grows during top-fall, shrinks during bottom-settle */
+    sh.animate([
+      {height:'0px',opacity:0},
+      {height:Math.round(ht*0.18)+'px',opacity:.7,offset:.35},
+      {height:Math.round(ht*0.06)+'px',opacity:.3,offset:.7},
+      {height:'0px',opacity:0}
+    ],{duration:dur,easing:'ease-out',fill:'forwards'});
+    /* Top falls */
+    t.animate([
+      {transform:'rotateX(0deg)',filter:'brightness(1)'},
+      {transform:'rotateX(-90deg)',filter:'brightness(.1)'}
+    ],{duration:dur*.36,easing:'ease-in',fill:'forwards'}).onfinish=()=>{
+      t.remove();fr.textContent=nc;
+      /* Bottom swings with 4-keyframe mechanical settle */
+      b.animate([
+        {transform:'rotateX(90deg)',filter:'brightness(.06)'},
+        {transform:'rotateX(-4deg)',filter:'brightness(1)',offset:.55},
+        {transform:'rotateX(2.2deg)',filter:'brightness(1)',offset:.74},
+        {transform:'rotateX(-0.8deg)',filter:'brightness(1)',offset:.9},
+        {transform:'rotateX(0deg)',filter:'brightness(1)'}
+      ],{duration:dur*.64,easing:'ease-out',fill:'forwards'}).onfinish=()=>{
+        b.remove();sh.remove();cell._flipping=false;res();
+      };
+    };
+  });
+}
+
+/* Multi-step drum flip: cycles through 1-4 random intermediate chars then lands on target */
+function flipC(cell,nc,dur,maxSteps){
+  if(cell._ch===nc&&!cell._flipping)return Promise.resolve();
+  if(cell._flipping)return Promise.resolve();
+  maxSteps=maxSteps||0;
+  const steps=maxSteps>0?1+Math.floor(Math.random()*Math.min(maxSteps,4)):0;
+  if(steps===0)return fFlip(cell,nc,dur);
+  /* Build sequence of intermediate characters */
+  const seq=[];
+  for(let i=0;i<steps;i++){
+    let rc;
+    do{rc=DRUM[Math.floor(Math.random()*DRUM.length)]}while(rc===cell._ch);
+    seq.push(rc);
+  }
+  /* Chain: quick flips for intermediates, final flip for target */
+  let chain=Promise.resolve();
+  seq.forEach(ic=>{chain=chain.then(()=>qFlip(cell,ic))});
+  chain=chain.then(()=>fFlip(cell,nc,dur));
+  return chain;
+}
+
+function fChars(fl){
+  const c=[];
+  for(let i=0;i<W_AL;i++)c.push(fl.al[i]||' ');
+  for(let i=0;i<W_FN;i++)c.push(fl.fn[i]||' ');
+  for(let i=0;i<W_DS;i++)c.push(fl.ds[i]||' ');
+  for(let i=0;i<W_TM;i++)c.push(fl.tm[i]||' ');
+  for(let i=0;i<W_GT;i++)c.push(fl.gt[i]||' ');
+  for(let i=0;i<W_ST;i++)c.push(fl.st[i]||' ');
+  return c;
+}
+
+function flipR(row,fl,stag){
+  const cells=row._cells;if(!cells)return;
+  const ch=fChars(fl);
+  const sc=fl.sr==='BOARDING'?'c-bo':fl.sr==='DELAYED'?'c-de':fl.sr==='GATE OPEN'?'c-go':'c-on';
+  const bk=fl.sr==='BOARDING'?'bk-g':fl.sr==='DELAYED'?'bk-r':fl.sr==='GATE OPEN'?'bk-b':'';
+  const ss=W_AL+W_FN+W_DS+W_TM+W_GT;
+  cells.forEach((c,i)=>{
+    const dl=stag?i*16+Math.random()*12:0;
+    setTimeout(()=>{
+      if(i>=ss)c.className='cell '+sc+' '+bk;
+      /* Multi-step drum cycling during page transitions */
+      flipC(c,ch[i]||' ',220+Math.random()*90,stag?3:0);
+    },dl);
+  });row._fl=fl;
+}
+
+/* ═══ RENDER ═══ */
+let cur=0,pg=0,allF=[],fT,pT;
+
+function rPage(anim){
+  const s=pg*PPG,lf=allF.slice(s,s+ROWS),rf=allF.slice(s+ROWS,s+PPG);
+  ['colL','colR'].forEach((cid,ci)=>{
+    const col=document.getElementById(cid),fls=ci?rf:lf;
+    if(!anim||!col.querySelectorAll('.frow').length){
+      col.innerHTML='';col.appendChild(bHdr());
+      for(let i=0;i<ROWS;i++)col.appendChild(bRow(fls[i]||EMPTY,cid[3]+i));
+    }else{
+      col.querySelectorAll('.frow').forEach((r,i)=>{
+        setTimeout(()=>flipR(r,fls[i]||EMPTY,true),i*55+Math.random()*25);
+      });
+    }
+  });
+  document.getElementById('pginfo').textContent='PAGE '+(pg+1)+'/'+Math.ceil(allF.length/PPG);
+}
+
+function rBoard(idx,cascade){
+  const a=AP[idx];
+  document.getElementById('ap-name').textContent=a.n;
+  document.getElementById('ap-sub').textContent=a.s;
+  allF=genF(a);pg=0;rPage(cascade?true:false);
+  const nav=document.getElementById('nav');
+  nav.innerHTML=AP.map((x,i)=>
+    `<button onclick="sw(${i})" class="${i===idx?'act':''}">${x.c}</button>`
+  ).join('');
+  setTimeout(()=>{const b=nav.children[idx];if(b)b.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'})},50);
+}
+
+/* ═══ RANDOM FLIP — whole-field based ═══ */
+/* Field boundaries within cell array */
+const FIELDS=[
+  {s:0,e:W_AL},                            /* Airline */
+  {s:W_AL,e:W_AL+W_FN},                    /* Flight# */
+  {s:W_AL+W_FN,e:W_AL+W_FN+W_DS},         /* Destination */
+  {s:W_AL+W_FN+W_DS,e:W_AL+W_FN+W_DS+W_TM},/* Time */
+  {s:W_AL+W_FN+W_DS+W_TM,e:W_AL+W_FN+W_DS+W_TM+W_GT},/* Gate */
+  {s:W_AL+W_FN+W_DS+W_TM+W_GT,e:WTOT}     /* Status */
+];
+
+function rFlip(){
+  const cid=Math.random()<.5?'colL':'colR';
+  const rows=document.getElementById(cid).querySelectorAll('.frow');
+  if(!rows.length){fT=setTimeout(rFlip,2e3);return}
+  const row=rows[Math.floor(Math.random()*rows.length)];
+  if(!row?._cells){fT=setTimeout(rFlip,2e3);return}
+  /* Pick a random field to flip as a unit */
+  const fld=FIELDS[Math.floor(Math.random()*FIELDS.length)];
+  const orig=[];
+  for(let i=fld.s;i<fld.e;i++)orig.push(row._cells[i]._ch);
+  /* Flip each char in the field through drum intermediates, then back to original */
+  for(let i=fld.s;i<fld.e;i++){
+    const c=row._cells[i],oc=orig[i-fld.s];
+    const delay=(i-fld.s)*20+Math.random()*15;
+    setTimeout(()=>{
+      /* Drum through 2-4 random chars then return to original */
+      const steps=2+Math.floor(Math.random()*3);
+      let chain=Promise.resolve();
+      for(let j=0;j<steps;j++){
+        const rc=DRUM[Math.floor(Math.random()*DRUM.length)];
+        chain=chain.then(()=>qFlip(c,rc));
+      }
+      chain.then(()=>fFlip(c,oc,200+Math.random()*60));
+    },delay);
+  }
+  fT=setTimeout(rFlip,1300+Math.random()*2700);
+}
+
+function autoP(){
+  const pages=Math.ceil(allF.length/PPG);
+  if(pages>1){pg=(pg+1)%pages;rPage(true)}
+  pT=setTimeout(autoP,12e3);
+}
+
+function sw(i){
+  if(i===cur)return;clearTimeout(fT);clearTimeout(pT);
+  cur=i;rBoard(i,true);
+  fT=setTimeout(rFlip,1800);pT=setTimeout(autoP,12e3);
+}
+
+function tick(){
+  const t=new Date();
+  document.getElementById('clock').textContent=p2(t.getHours())+':'+p2(t.getMinutes())+':'+p2(t.getSeconds());
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='ArrowDown'){e.preventDefault();sw((cur+1)%AP.length)}
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp'){e.preventDefault();sw((cur-1+AP.length)%AP.length)}
+});
+
+/* ═══ INIT ═══ */
+initLayout();rBoard(0,false);tick();setInterval(tick,1e3);
+fT=setTimeout(rFlip,1500);pT=setTimeout(autoP,12e3);
+window.addEventListener('resize',()=>{initLayout();rBoard(cur,false)});
+</script>
+</body>
+</html>

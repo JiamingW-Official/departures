@@ -118,6 +118,10 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
   line-height:1;opacity:.04}
 #colL .col-label{color:#c8e0c0}
 #colR .col-label{color:#b8d0e0}
+/* Column focus/dim */
+.col-focus .col-label{opacity:.12}
+.col-dim{opacity:.15}
+.col-dim .col-label{opacity:.03}
 
 /* Column header */
 .col-hdr{display:flex;gap:1px;flex-shrink:0;position:relative}

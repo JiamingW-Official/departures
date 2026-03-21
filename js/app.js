@@ -211,6 +211,28 @@ function bHdr(mode){
   });return h;
 }
 
+/* ═══ COLUMN FOCUS ═══ */
+let _focusCol=null; /* null=both, 'colL'=dep focused, 'colR'=arr focused */
+function toggleColFocus(cid){
+  const colL=document.getElementById('colL');
+  const colR=document.getElementById('colR');
+  if(_focusCol===cid){
+    /* Already focused — unfocus (show both) */
+    _focusCol=null;
+    colL.classList.remove('col-dim','col-focus');
+    colR.classList.remove('col-dim','col-focus');
+  }else{
+    _focusCol=cid;
+    if(cid==='colL'){
+      colL.classList.remove('col-dim');colL.classList.add('col-focus');
+      colR.classList.remove('col-focus');colR.classList.add('col-dim');
+    }else{
+      colR.classList.remove('col-dim');colR.classList.add('col-focus');
+      colL.classList.remove('col-focus');colL.classList.add('col-dim');
+    }
+  }
+}
+
 /* ═══ BOARD MANAGEMENT ═══ */
 function initBoard(){
   [['colL','dep'],['colR','arr']].forEach(([cid,mode])=>{
@@ -218,6 +240,8 @@ function initBoard(){
     col.innerHTML='';
     const lbl=document.createElement('div');lbl.className='col-label';
     lbl.textContent=mode==='dep'?'DEPARTURES':'ARRIVALS';
+    lbl.style.cursor='pointer';lbl.style.pointerEvents='auto';
+    lbl.addEventListener('click',()=>toggleColFocus(cid));
     col.appendChild(lbl);
     const frag=document.createDocumentFragment();
     frag.appendChild(bHdr(mode));
@@ -1308,17 +1332,17 @@ _elFlights.addEventListener('wheel',e=>{
   whlAx+=e.deltaX;whlAy+=e.deltaY;
   clearTimeout(whlReset);
   whlReset=setTimeout(()=>{whlAx=0;whlAy=0},200);
-  if(Date.now()-whlT<800)return;
+  if(Date.now()-whlT<1200)return;
   const ax=Math.abs(whlAx),ay=Math.abs(whlAy);
   /* Horizontal swipe → switch airport (needs strong intent) */
-  if(ax>ay*3&&ax>200){
+  if(ax>ay*4&&ax>400){
     whlT=Date.now();whlAx=0;whlAy=0;
     if(e.deltaX>0) sw((cur+1)%AP.length);
     else sw((cur-1+AP.length)%AP.length);
     return;
   }
   /* Vertical scroll → page up/down */
-  if(ay>ax*3&&ay>200){
+  if(ay>ax*4&&ay>400){
     whlT=Date.now();whlAx=0;whlAy=0;
     userIdle=0;clearTimeout(pT);
     const pages=totalPages();

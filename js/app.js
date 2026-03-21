@@ -283,62 +283,53 @@ function updatePage(animate){
     return;
   }
 
-  /* Build ordered queue */
+  /* Build flat queue — row-major order, no sort needed */
   const q=[];
-  const maxR=ROWS-1||1;
   [['colL',lf],['colR',rf]].forEach(([cid,fls])=>{
     const rows=boardRows[cid];
     for(let ri=0;ri<rows.length;ri++){
       const row=rows[ri];
       const fl=fls[ri]||EMPTY;
       const ch=fChars(fl);
-      const sc=statusCls(fl.sr), bk=breathCls(fl.sr);
+      const sc=statusCls(fl.sr);
       const ss=W_AL+W_FN+W_DS+W_TM+W_GT;
-      const rd=Math.pow(ri/maxR,1.3)*maxR*26;
       const cells=row._cells;
       for(let ci=0;ci<cells.length;ci++){
         const nc=ch[ci]||' ';
-        if(ci>=ss) cells[ci].className='cell '+sc+' '+bk;
+        if(ci>=ss) cells[ci].className='cell '+sc;
         if(cells[ci]._ch===nc)continue;
-        q.push({c:cells[ci],nc,t:rd+ci*2.5});
+        q.push(cells[ci],nc);
       }
       row._fl=fl;
     }
   });
-
-  q.sort((a,b)=>a.t-b.t);
 
   if(flipQueue){flipQueue.cancelled=true;clearDimState()}
 
   const state={cancelled:false};
   flipQueue=state;
   const t0=performance.now();
-  let di=0,ti=0;
-  const DIM=32;
+  let idx=0;
+  const total=q.length/2;
+  /* Speed: process ~20 cells per frame for smooth cascade */
+  const cellsPerMs=total>0?total/Math.max(200,total*1.5):1;
 
   function step(now){
     if(state.cancelled)return;
-    const elapsed=now-t0;
-    while(di<q.length&&q[di].t<=elapsed){
-      const e=q[di];
-      if(e.c._flipping){
-        /* Fast cleanup — remove child overlays without querySelectorAll */
-        const ch=e.c.children;
-        for(let k=ch.length-1;k>=1;k--)ch[k].remove();
-        e.c._flipping=false;
+    const target=Math.min(total,Math.floor((now-t0)*cellsPerMs));
+    while(idx<target){
+      const ci=idx*2;
+      const c=q[ci],nc=q[ci+1];
+      if(c._flipping){
+        const ch=c.children;for(let k=ch.length-1;k>=1;k--)ch[k].remove();
+        c._flipping=false;
       }
-      e.c.classList.add('fdim');
-      massFlipSound();
-      di++;
+      c._ch=nc;
+      c._fr.textContent=nc;
+      if(idx%6===0)massFlipSound();
+      idx++;
     }
-    while(ti<q.length&&q[ti].t+DIM<=elapsed){
-      const e=q[ti];
-      e.c._ch=e.nc;
-      e.c._fr.textContent=e.nc;
-      e.c.classList.remove('fdim');
-      ti++;
-    }
-    if(di<q.length||ti<q.length)requestAnimationFrame(step);
+    if(idx<total)requestAnimationFrame(step);
     else flipQueue=null;
   }
   requestAnimationFrame(step);
@@ -543,12 +534,12 @@ async function loadAirport(idx,animate){
     ]);
     lastFetchTime=Date.now();
     if(rd&&rd.length) depF=rd;
-    else depF=genF(a,500,false,0);
+    else depF=genF(a,300,false,0);
     if(ra&&ra.length) arrF=ra;
-    else arrF=genF(a,500,true,0);
+    else arrF=genF(a,300,true,0);
   }else{
-    depF=genF(a,500,false,0);
-    arrF=genF(a,500,true,0);
+    depF=genF(a,300,false,0);
+    arrF=genF(a,300,true,0);
   }
 
   /* Extend + balance: ensure 24h coverage from now into next day */
@@ -677,12 +668,12 @@ async function autoP(){
       ]);
       lastFetchTime=Date.now();
       if(rd&&rd.length) depF=rd;
-      else depF=genF(a,500,false,0);
+      else depF=genF(a,300,false,0);
       if(ra&&ra.length) arrF=ra;
-      else arrF=genF(a,500,true,0);
+      else arrF=genF(a,300,true,0);
     }else{
-      depF=genF(a,500,false,0);
-      arrF=genF(a,500,true,0);
+      depF=genF(a,300,false,0);
+      arrF=genF(a,300,true,0);
     }
     extendAndBalance(a);
     renderStats();

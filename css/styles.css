@@ -182,8 +182,7 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
 .cell .flip-bot{top:50%;height:50%;
   background:linear-gradient(to bottom,var(--flap3),var(--flap4));
   transform-origin:top center}
-.cell .flip-shadow{position:absolute;left:-1px;right:-1px;top:50%;height:0;
-  background:rgba(0,0,0,.35);filter:blur(3px);z-index:8;pointer-events:none;border-radius:50%}
+/* flip-shadow removed for performance */
 
 /* ═══ STATUS COLORS ═══ */
 .c-on .front{color:var(--txt)}

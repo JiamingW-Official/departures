@@ -20,9 +20,9 @@ function initAudio(){
 
     const sr=_ac.sampleRate;
 
-    /* 16 varied click buffers — each with unique mechanical character */
-    const len=Math.floor(sr*0.022);
-    for(let i=0;i<16;i++){
+    /* 8 varied click buffers */
+    const len=Math.floor(sr*0.018);
+    for(let i=0;i<8;i++){
       const buf=_ac.createBuffer(1,len,sr),ch=buf.getChannelData(0);
       const clickW=Math.floor(len*(0.03+i*0.005));
       const resonance=1200+i*180; /* each buffer has slightly different tone */
@@ -67,15 +67,7 @@ function flipSound(v){
   const g=_ac.createGain();g.gain.value=Math.min(1,v||0.5);
   s.connect(bp);bp.connect(g);g.connect(_ag);
   s.start();s.stop(_ac.currentTime+0.022);
-  /* Subtle room body on louder clicks */
-  if(v>0.4&&_bodyBuf){
-    const bs=_ac.createBufferSource();bs.buffer=_bodyBuf;
-    bs.playbackRate.value=0.8+Math.random()*0.4;
-    const bg=_ac.createGain();bg.gain.value=v*0.25;
-    const lp=_ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=600;
-    bs.connect(lp);lp.connect(bg);bg.connect(_ag);
-    bs.start();bs.stop(_ac.currentTime+0.06);
-  }
+  /* Room body removed for performance */
 }
 
 /* Mass flip — tighter throttle, quieter */

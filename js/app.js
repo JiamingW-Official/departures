@@ -961,7 +961,11 @@ function filterSearch(q){
   q=q.toUpperCase().trim();
   srchItems=[];
   if(!q){
-    /* Empty: recent → favorites → by region */
+    /* Empty: nearest → recent → favorites → by region */
+    if(nearestAp>=0){
+      srchItems.push({divider:'NEAREST AIRPORT'});
+      srchItems.push({idx:nearestAp});
+    }
     const recentIdxs=recent.map(c=>AP.findIndex(a=>a.c===c)).filter(i=>i>=0);
     if(recentIdxs.length){
       srchItems.push({divider:'RECENT'});
@@ -992,6 +996,7 @@ function filterSearch(q){
       else if(name.includes(q))score=40;
       else if(sub.includes(q))score=20;
       if(score){
+        if(i===nearestAp)score+=7;
         if(favs.includes(a.c))score+=5;
         if(recent.includes(a.c))score+=3;
         scored.push({idx:i,score});
@@ -1021,10 +1026,10 @@ function renderSearch(){
     const codeTxt=highlightMatch(a.c,q);
     const nameTxt=highlightMatch(a.n,q);
     const favIcon=isFav?'<span style="color:#c8a830;margin-right:4px">\u2605</span>':'';
-    const regionTag=region&&!q?`<span class="si-region">${region}</span>`:'';
-    const sub=a.s&&a.s!=='DEPARTURES'&&q?`<span class="si-sub">${a.s}</span>`:'';
+    const nearTag=item.idx===nearestAp?'<span class="si-near">\u25C9 NEAREST</span>':'';
+    const regionTag=region&&!q&&item.idx!==nearestAp?`<span class="si-region">${region}</span>`:'';
     si++;
-    return`<div class="${cls}" onmousedown="selectSearch(${item.idx})">${favIcon}<span class="si-code">${codeTxt}</span><span class="si-name">${nameTxt}</span>${sub}${regionTag}</div>`;
+    return`<div class="${cls}" onmousedown="selectSearch(${item.idx})">${favIcon}<span class="si-code">${codeTxt}</span><span class="si-name">${nameTxt}</span>${nearTag}${regionTag}</div>`;
   }).join('');
   const act=box.querySelector('.active');
   if(act)act.scrollIntoView({block:'nearest'});

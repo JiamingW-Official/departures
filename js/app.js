@@ -928,10 +928,10 @@ let srchItems=[], srchFlRes=[];
 let _srchT;
 
 const SR_COLORS={
-  'ON TIME':'#e0d8b8','BOARDING':'#50d070','GATE OPEN':'#58a0d8',
-  'DELAYED':'#e05040','DEPARTED':'#4a4838','LAST CALL':'#e05040',
-  'CANCELLED':'rgba(224,80,64,.7)','LANDED':'#4a4838','ARRIVING':'#50d070',
-  'EXPECTED':'#58a0d8'
+  'ON TIME':'#d8d0b0','BOARDING':'#44c060','GATE OPEN':'#4890c0',
+  'DELAYED':'#c84840','DEPARTED':'#302e28','LAST CALL':'#c84840',
+  'CANCELLED':'rgba(180,64,52,.6)','LANDED':'#302e28','ARRIVING':'#44c060',
+  'EXPECTED':'#4890c0'
 };
 
 function buildFlightFilters(){

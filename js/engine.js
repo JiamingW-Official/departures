@@ -4,8 +4,8 @@ const DRUM='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-:. ';
 
 /* Status color lookup */
 const STATUS_COLORS={
-  'c-on':'#ddd6b6','c-bo':'#50d070','c-de':'#e05040',
-  'c-go':'#58a0d8','c-dp':'#4a4838','c-lc':'#e05040','c-cx':'rgba(224,80,64,.7)'
+  'c-on':'#d8d0b0','c-bo':'#44c060','c-de':'#c84840',
+  'c-go':'#4890c0','c-dp':'#302e28','c-lc':'#c84840','c-cx':'rgba(180,64,52,.6)'
 };
 function getCellColor(cell){
   const cls=cell.className;

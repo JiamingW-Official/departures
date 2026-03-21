@@ -1271,7 +1271,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'){e.preventDefault();sw((cur-1+AP.length)%AP.length)}
 });
 
-/* ═══ TOUCH / TRACKPAD SWIPE ═══ */
+/* ═══ TOUCH SWIPE ═══ */
 let tx0=0,ty0=0,swT=0;
 _elFlights=document.getElementById('flights');
 _elFlights.addEventListener('touchstart',e=>{
@@ -1281,21 +1281,49 @@ _elFlights.addEventListener('touchend',e=>{
   if(Date.now()-swT<400)return;
   const dx=e.changedTouches[0].clientX-tx0;
   const dy=e.changedTouches[0].clientY-ty0;
-  if(Math.abs(dx)>Math.abs(dy)*1.5&&Math.abs(dx)>50){
+  const ax=Math.abs(dx),ay=Math.abs(dy);
+  /* Horizontal swipe → switch airport */
+  if(ax>ay*1.5&&ax>50){
     swT=Date.now();
     if(dx>0) sw((cur-1+AP.length)%AP.length);
     else sw((cur+1)%AP.length);
   }
+  /* Vertical swipe → page */
+  else if(ay>ax*1.5&&ay>50){
+    swT=Date.now();
+    userIdle=0;clearTimeout(pT);
+    const pages=totalPages();
+    if(dy<0) pg=(pg+1)%pages;
+    else pg=(pg-1+pages)%pages;
+    updatePage(true);
+    pT=setTimeout(autoP,30e3);
+  }
 },{passive:true});
 
-/* ═══ WHEEL NAV ═══ */
+/* ═══ TRACKPAD / WHEEL ═══ */
 let whlT=0;
 _elFlights.addEventListener('wheel',e=>{
-  if(Date.now()-whlT<350)return;
-  whlT=Date.now();
-  e.preventDefault();
-  if(e.deltaY>0||e.deltaX>0) sw((cur+1)%AP.length);
-  else sw((cur-1+AP.length)%AP.length);
+  if(Date.now()-whlT<300)return;
+  const ax=Math.abs(e.deltaX),ay=Math.abs(e.deltaY);
+  /* Horizontal swipe → switch airport */
+  if(ax>ay&&ax>15){
+    whlT=Date.now();
+    e.preventDefault();
+    if(e.deltaX>0) sw((cur+1)%AP.length);
+    else sw((cur-1+AP.length)%AP.length);
+    return;
+  }
+  /* Vertical scroll → page up/down */
+  if(ay>ax&&ay>15){
+    whlT=Date.now();
+    e.preventDefault();
+    userIdle=0;clearTimeout(pT);
+    const pages=totalPages();
+    if(e.deltaY>0) pg=(pg+1)%pages;
+    else pg=(pg-1+pages)%pages;
+    updatePage(true);
+    pT=setTimeout(autoP,30e3);
+  }
 },{passive:false});
 
 /* ═══ PAGE CLICK ═══ */

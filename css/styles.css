@@ -112,15 +112,15 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
 /* Watermark */
 .col-label{position:absolute;top:clamp(2px,.2vw,5px);left:clamp(2px,.25vw,6px);
   font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
-  font-weight:800;font-style:italic;
+  font-weight:900;font-style:italic;
   font-size:clamp(13px,1.5vw,30px);letter-spacing:clamp(3px,.5vw,10px);
   text-transform:uppercase;pointer-events:none;z-index:3;
-  line-height:1;opacity:.04}
+  line-height:1;opacity:.09}
 #colL .col-label{color:#c8e0c0}
 #colR .col-label{color:#b8d0e0}
 /* Column focus/dim */
-.col-focus .col-label{opacity:.12}
-.col-dim{opacity:.15}
+.col-focus .col-label{opacity:.22}
+.col-dim{opacity:.12}
 .col-dim .col-label{opacity:.03}
 
 /* Column header */

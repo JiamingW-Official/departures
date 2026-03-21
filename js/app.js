@@ -543,7 +543,7 @@ async function loadAirport(idx,animate){
   const a=AP[idx];
   for(let i=0;i<3;i++) hFlip(_iataCells[i],a.c[i]||' ',180+i*50);
   _elApName.textContent=a.n;
-  _elApSub.textContent=getDualSubtitle(a);
+  _elApSub.textContent='';
   document.title=a.c+' \u2014 DEPARTURES \u00b7 ARRIVALS';
 
   /* Loading state */

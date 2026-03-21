@@ -507,7 +507,6 @@ async function fetchRealFlights(airport,type){
 
 /* ═══ EXTEND & BALANCE ═══ */
 function extendAndBalance(a){
-  /* Compute current airport-local minutes */
   const tz=TZ[a.c];
   const now=new Date();
   let cm;
@@ -515,27 +514,27 @@ function extendAndBalance(a){
     const parts=now.toLocaleTimeString('en-GB',{timeZone:tz,hour12:false}).split(':');
     cm=parseInt(parts[0])*60+parseInt(parts[1]);
   }else{cm=now.getHours()*60+now.getMinutes()}
-  /* Target: cover from now until 24h later */
   const targetEnd=cm+1440;
-  /* Extend departures into next day if needed */
+  /* Extend into next day — push onto existing arrays (no spread copy) */
   const depEnd=depF.length?depF[depF.length-1]._t:0;
   if(depEnd<targetEnd){
-    const need=Math.max(100,Math.ceil((targetEnd-depEnd)/5));
-    depF=[...depF,...genF(a,need,false,depEnd+5)];
+    const fill=genF(a,Math.max(80,Math.ceil((targetEnd-depEnd)/6)),false,depEnd+5);
+    for(let i=0;i<fill.length;i++)depF.push(fill[i]);
   }
-  /* Extend arrivals into next day if needed */
   const arrEnd=arrF.length?arrF[arrF.length-1]._t:0;
   if(arrEnd<targetEnd){
-    const need=Math.max(100,Math.ceil((targetEnd-arrEnd)/5));
-    arrF=[...arrF,...genF(a,need,true,arrEnd+5)];
+    const fill=genF(a,Math.max(80,Math.ceil((targetEnd-arrEnd)/6)),true,arrEnd+5);
+    for(let i=0;i<fill.length;i++)arrF.push(fill[i]);
   }
-  /* Balance columns so every page is full */
+  /* Balance — pad shorter column */
   const maxLen=Math.max(depF.length,arrF.length);
   if(depF.length<maxLen){
-    depF=[...depF,...genF(a,maxLen-depF.length,false,depF[depF.length-1]._t+5)];
+    const fill=genF(a,maxLen-depF.length,false,depF[depF.length-1]._t+5);
+    for(let i=0;i<fill.length;i++)depF.push(fill[i]);
   }
   if(arrF.length<maxLen){
-    arrF=[...arrF,...genF(a,maxLen-arrF.length,true,arrF[arrF.length-1]._t+5)];
+    const fill=genF(a,maxLen-arrF.length,true,arrF[arrF.length-1]._t+5);
+    for(let i=0;i<fill.length;i++)arrF.push(fill[i]);
   }
 }
 
@@ -659,19 +658,14 @@ function rFlip(){
   const fld=FIELDS[Math.floor(Math.random()*FIELDS.length)];
   for(let i=fld.s;i<fld.e;i++){
     const c=row._cells[i], oc=c._ch;
-    const delay=(i-fld.s)*18+Math.random()*12;
+    const delay=(i-fld.s)*20+Math.random()*15;
     setTimeout(()=>{
       if(gen!==flipGen)return;
-      const steps=2+Math.floor(Math.random()*3);
-      let chain=Promise.resolve();
-      for(let j=0;j<steps;j++){
-        const rc=DRUM[Math.floor(Math.random()*DRUM.length)];
-        chain=chain.then(()=>qFlip(c,rc));
-      }
-      chain.then(()=>fFlip(c,oc,180+Math.random()*60));
+      qFlip(c,DRUM[Math.floor(Math.random()*DRUM.length)])
+        .then(()=>fFlip(c,oc,160+Math.random()*50));
     },delay);
   }
-  fT=setTimeout(rFlip,1500+Math.random()*2500);
+  fT=setTimeout(rFlip,3000+Math.random()*4000);
 }
 
 /* ═══ AUTO-PAGINATION ═══ */
@@ -1330,7 +1324,6 @@ initNav();
 initLayout();
 initBoard();
 fitLayout();
-initDust();
 tick(); setInterval(tick,1e3);
 
 setTimeout(async ()=>{

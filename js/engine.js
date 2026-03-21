@@ -4,7 +4,7 @@ const DRUM='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-:. ';
 
 const STATUS_COLORS={
   'c-on':'#d8d0b0','c-bo':'#44c060','c-de':'#c84840',
-  'c-go':'#4890c0','c-dp':'#302e28','c-lc':'#c84840','c-cx':'rgba(180,64,52,.6)'
+  'c-go':'#4890c0','c-dp':'#6a6458','c-lc':'#c84840','c-cx':'rgba(180,64,52,.6)'
 };
 function getCellColor(cell){
   const cls=cell.className;

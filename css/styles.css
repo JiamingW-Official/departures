@@ -23,9 +23,7 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
 /* ═══ BOARD SHELL ═══ */
 #board{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;
   background:var(--frame)}
-#board::after{content:'';position:absolute;inset:0;
-  background:radial-gradient(ellipse 110% 90% at 50% 40%,transparent 45%,rgba(2,1,0,.5) 100%);
-  pointer-events:none;z-index:50}
+/* vignette removed for performance */
 
 /* ═══ HEADER ═══ */
 #hdr{display:flex;justify-content:space-between;align-items:stretch;
@@ -33,8 +31,7 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
   flex-shrink:0;position:relative;
   background:var(--chrome);
   border-bottom:1px solid rgba(255,240,200,.02)}
-#hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,transparent 8%,rgba(255,240,200,.025) 50%,transparent 92%)}
+/* header highlight removed */
 #hdr-left{min-width:0;display:flex;flex-direction:column;justify-content:center}
 #hdr-top{display:flex;align-items:center;gap:clamp(6px,.6vw,12px)}
 #hdr-right{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:clamp(2px,.25vh,5px)}
@@ -115,9 +112,7 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
   overflow:hidden;touch-action:pan-y;
   background:var(--deep);
   box-shadow:inset 0 4px 12px -3px rgba(0,0,0,.5),inset 0 -2px 8px -3px rgba(0,0,0,.3)}
-#flights::before{content:'';position:absolute;inset:0;
-  background:linear-gradient(to bottom,rgba(255,235,190,.015) 0%,transparent 30%,rgba(0,0,0,.03) 100%);
-  pointer-events:none;z-index:1}
+/* flights overlay removed for performance */
 
 /* Column */
 .col{flex:1;display:flex;flex-direction:column;gap:var(--rgap);overflow:hidden;position:relative;
@@ -154,8 +149,7 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
 /* ═══ SPLIT-FLAP CELL ═══ */
 .cell{
   width:var(--cw);height:var(--ch);
-  position:relative;perspective:calc(var(--cw)*7);
-  flex-shrink:0;contain:strict;
+  position:relative;flex-shrink:0;
 }
 .cell .front{
   position:absolute;inset:0;
@@ -169,19 +163,7 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
     var(--flap3) 56%,var(--flap4) 100%);
   text-shadow:0 1px 1px rgba(0,0,0,.5);
 }
-/* Seam groove */
-.cell .front::after{
-  content:'';position:absolute;left:0;right:0;top:50%;
-  height:calc(var(--cw)*.07 + .5px);transform:translateY(-50%);
-  background:linear-gradient(to bottom,rgba(2,1,0,.85),rgba(6,4,2,.3));
-  pointer-events:none;z-index:5;
-}
-/* Top shadow */
-.cell .front::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:calc(var(--cw)*.12);
-  background:linear-gradient(to bottom,rgba(4,3,1,.25),transparent);
-  pointer-events:none;z-index:4;border-radius:1px 1px 0 0;
-}
+/* Seam — baked into background gradient, no pseudo-element needed */
 
 /* ═══ FLIP LAYERS ═══ */
 .cell .flip-top,.cell .flip-bot{
@@ -212,14 +194,7 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
 .c-lc .front{color:#c84840}
 .c-cx .front{color:rgba(180,64,52,.6)}
 
-/* Breathing — very slow, very subtle */
-@keyframes breathG{0%,100%{opacity:1}50%{opacity:.4}}
-@keyframes breathR{0%,100%{opacity:1}50%{opacity:.42}}
-@keyframes breathB{0%,100%{opacity:1}50%{opacity:.42}}
-.bk-g .front{animation:breathG 2.5s ease-in-out infinite}
-.bk-r .front{animation:breathR 2.8s ease-in-out infinite}
-.bk-b .front{animation:breathB 3s ease-in-out infinite}
-.bk-lc .front{animation:breathR 1.4s ease-in-out infinite}
+/* Breathing removed — too many animated elements hurt performance */
 
 .gap{width:var(--gap);flex-shrink:0}
 .gap-sm{width:var(--gap-sm);flex-shrink:0}
@@ -229,8 +204,7 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
   padding:clamp(5px,.5vh,9px) 0;flex-shrink:0;position:relative;
   background:var(--chrome);
   border-top:1px solid rgba(255,240,200,.025)}
-#nav::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;
-  background:linear-gradient(90deg,transparent 5%,rgba(255,240,200,.03) 50%,transparent 95%)}
+/* nav highlight removed */
 #nav-fixed{display:flex;align-items:center;gap:clamp(4px,.3vw,7px);
   padding:0 clamp(8px,.7vw,16px);flex-shrink:0}
 #nav-scroll{display:flex;align-items:center;gap:clamp(5px,.4vw,8px);

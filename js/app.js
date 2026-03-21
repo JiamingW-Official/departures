@@ -15,7 +15,7 @@ let userIdle=0; /* auto-page pauses while user active */
 const boardRows={colL:[], colR:[]};
 
 /* ═══ CACHED DOM REFS ═══ */
-let _elClock,_elDate,_elTz,_elPg,_elApIata,_elApName,_elNavF,_elNavS,_elFlights;
+let _elClock,_elDate,_elTz,_elPg,_elApIata,_elApName,_elNavF,_elNavS,_elFlights,_elLiveTxt;
 function cacheDom(){
   _elClock=document.getElementById('clock');
   _elDate=document.getElementById('date-info');
@@ -191,23 +191,11 @@ function bRow(fl,id){
   add(fl.tm);         r.appendChild(mkG());
   add(fl.gt);         r.appendChild(mkG());
   add(fl.st,sc+' '+bk);
+  /* Click: brief brightness flash (no heavy flip chain) */
   r.addEventListener('click',()=>{
-    if(r._clicking)return;
-    r._clicking=true;
-    const t0=performance.now();
-    let idx=0;
-    function step(now){
-      const elapsed=now-t0;
-      while(idx<r._cells.length&&idx*12<=elapsed){
-        const c=r._cells[idx],oc=c._ch;
-        qFlip(c,DRUM[Math.floor(Math.random()*DRUM.length)])
-          .then(()=>fFlip(c,oc,130+Math.random()*40));
-        idx++;
-      }
-      if(idx<r._cells.length)requestAnimationFrame(step);
-      else r._clicking=false;
-    }
-    requestAnimationFrame(step);
+    r.classList.remove('highlight');
+    void r.offsetWidth;
+    r.classList.add('highlight');
   });
   return r;
 }
@@ -333,9 +321,10 @@ function updatePage(animate){
     const elapsed=now-t0;
     while(di<q.length&&q[di].t<=elapsed){
       const e=q[di];
-      if(e.c._anim){e.c._anim.cancel();e.c._anim=null}
       if(e.c._flipping){
-        e.c.querySelectorAll('.flip-top,.flip-bot,.flip-shadow').forEach(x=>x.remove());
+        /* Fast cleanup — remove child overlays without querySelectorAll */
+        const ch=e.c.children;
+        for(let k=ch.length-1;k>=1;k--)ch[k].remove();
         e.c._flipping=false;
       }
       e.c.classList.add('fdim');
@@ -599,6 +588,7 @@ function computeStatus(type,diff,hasDelay){
   }
 }
 function refreshStatuses(){
+  /* Only recompute visible page flights, not all 500+ */
   const code=AP[cur].c;
   const tz=TZ[code];
   const now=new Date();
@@ -608,9 +598,11 @@ function refreshStatuses(){
     cm=parseInt(parts[0])*60+parseInt(parts[1]);
   }else{cm=now.getHours()*60+now.getMinutes()}
   const nowMs=now.getTime();
+  const s=pg*ROWS;
   let changed=false;
-  [['dep',depF],['arr',arrF]].forEach(([type,flights])=>{
-    for(let i=0;i<flights.length;i++){
+  [['dep',depF,s],['arr',arrF,s]].forEach(([type,flights,start])=>{
+    const end=Math.min(start+ROWS,flights.length);
+    for(let i=start;i<end;i++){
       const f=flights[i];
       const diff=f._sched?(f._sched-nowMs)/60000:(f._t-cm);
       const newSr=computeStatus(type,diff,(f._delay||0)>0);
@@ -621,7 +613,7 @@ function refreshStatuses(){
       }
     }
   });
-  if(changed){updateStatusCells();updateNavStats();renderStats()}
+  if(changed){updateStatusCells();updateNavStats()}
 }
 function updateStatusCells(){
   const s=pg*ROWS;
@@ -744,6 +736,7 @@ function initNav(){
     '<div class="nav-search" onclick="openSearch()"><span class="ns-key">/</span>SEARCH</div>';
   document.getElementById('nb-mute').onclick=()=>toggleMute();
   document.getElementById('nb-fav').onclick=()=>toggleFav();
+  _elLiveTxt=document.getElementById('nb-live-txt');
 }
 function renderNav(idx){
   /* Mute */
@@ -850,10 +843,9 @@ function tick(){
   _elDate.textContent=t.toLocaleDateString('en-US',{timeZone:tz,weekday:'short',day:'numeric',month:'short',year:'numeric'}).toUpperCase();
   _elTz.textContent=getTzAbbr(code);
   /* Update LIVE age every tick */
-  if(useRealData&&lastFetchTime){
+  if(useRealData&&lastFetchTime&&_elLiveTxt){
     const ago=Math.floor((Date.now()-lastFetchTime)/60000);
-    const el=document.getElementById('nb-live-txt');
-    if(el)el.textContent=ago>0?'LIVE \u00b7 '+ago+'M':'LIVE';
+    _elLiveTxt.textContent=ago>0?'LIVE \u00b7 '+ago+'M':'LIVE';
   }
 }
 

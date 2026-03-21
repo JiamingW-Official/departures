@@ -25,15 +25,16 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
 
 /* ═══ HEADER ═══ */
 #hdr{display:flex;justify-content:space-between;align-items:center;
-  padding:clamp(6px,.9vh,14px) clamp(12px,1.4vw,30px);
+  padding:clamp(7px,1vh,15px) clamp(14px,1.5vw,32px);
   flex-shrink:0;background:var(--chrome);
   border-bottom:1px solid rgba(255,240,200,.025)}
-#hdr-left{min-width:0;display:flex;flex-direction:column;justify-content:center}
-#hdr-top{display:flex;align-items:center;gap:clamp(8px,.7vw,14px)}
-#hdr-right{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:clamp(3px,.3vh,6px)}
+#hdr-left{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:clamp(2px,.2vh,4px)}
+#hdr-top{display:flex;align-items:center;gap:clamp(10px,.8vw,16px)}
+#hdr-right{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;gap:clamp(2px,.2vh,4px)}
 #ap-name{font-size:clamp(9px,.65vw,13px);letter-spacing:clamp(2px,.35vw,6px);
   color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  max-width:clamp(140px,22vw,420px)}
+  max-width:clamp(160px,24vw,450px)}
+#hdr-meta2{display:flex;align-items:center;gap:clamp(6px,.5vw,10px)}
 
 /* ═══ IATA FLAP CELLS ═══ */
 #ap-iata{display:flex;align-items:center;gap:2px}
@@ -83,8 +84,7 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
   animation:colonBlink 1s step-end infinite}
 @keyframes colonBlink{0%,100%{opacity:.65}50%{opacity:.08}}
 
-/* Meta */
-#hdr-meta{display:flex;align-items:center;justify-content:flex-end;gap:clamp(4px,.35vw,8px)}
+/* Meta is now #hdr-meta2 in hdr-left */
 #tz-label{font-size:clamp(8px,.5vw,11px);color:#6a6250;letter-spacing:2px;font-weight:700;
   font-variant-numeric:tabular-nums;
   padding:clamp(2px,.15vh,3px) clamp(5px,.4vw,10px);

@@ -1307,13 +1307,27 @@ initBoard();
 fitLayout();
 tick(); setInterval(tick,1e3);
 
-setTimeout(async ()=>{
-  await loadAirport(0,false);
-  fitLayout(); /* re-fit after content loaded */
-  requestAnimationFrame(fitLayout); /* and once more after paint */
+/* Detect nearest airport via geolocation, then load */
+function geoInit(){
+  if(!navigator.geolocation){loadDefault();return}
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      const idx=findNearestAirport(pos.coords.latitude,pos.coords.longitude);
+      if(idx>=0){cur=idx;trackRecent(AP[idx].c)}
+      loadDefault();
+    },
+    ()=>loadDefault(),
+    {timeout:4000,maximumAge:600000}
+  );
+}
+async function loadDefault(){
+  await loadAirport(cur,false);
+  fitLayout();
+  requestAnimationFrame(fitLayout);
   fT=setTimeout(rFlip,1500);
   pT=setTimeout(autoP,30e3);
-},100);
+}
+setTimeout(geoInit,80);
 
 document.addEventListener('click',()=>initAudio(),{once:true});
 

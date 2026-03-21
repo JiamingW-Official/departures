@@ -19,6 +19,7 @@
    <div id="pginfo"></div>
   </div>
  </div>
+ <div id="stats-bar"></div>
  <div id="flights">
   <div class="col" id="colL"></div>
   <div class="col-divider"></div>
@@ -33,8 +34,29 @@
    <button class="stab" onclick="setSearchTab('fl')">FLIGHTS</button>
   </div>
   <input id="search-input" type="text" placeholder="AIRPORT CODE OR NAME..." autocomplete="off" spellcheck="false">
+  <div id="search-filters"></div>
   <div id="search-results"></div>
-  <div id="search-hint">&uarr;&darr; page &ensp; &larr;&rarr; airports &ensp; / search &ensp; S fav &ensp; N now &ensp; F fullscreen &ensp; M sound</div>
+  <div id="search-hint">&uarr;&darr; navigate &ensp; PgUp/Dn fast &ensp; Tab switch &ensp; Enter select &ensp; Esc close</div>
+ </div>
+</div>
+<div id="help">
+ <div id="help-box">
+  <div id="help-title">KEYBOARD SHORTCUTS</div>
+  <div id="help-grid">
+   <div class="hk"><kbd>/ </kbd><span>Search</span></div>
+   <div class="hk"><kbd>M</kbd><span>Sound</span></div>
+   <div class="hk"><kbd>↑ ↓</kbd><span>Page</span></div>
+   <div class="hk"><kbd>← →</kbd><span>Airport</span></div>
+   <div class="hk"><kbd>N</kbd><span>Jump to now</span></div>
+   <div class="hk"><kbd>F</kbd><span>Fullscreen</span></div>
+   <div class="hk"><kbd>S</kbd><span>Favorite</span></div>
+   <div class="hk"><kbd>?</kbd><span>This help</span></div>
+   <div class="hk"><kbd>1-9</kbd><span>Go to page</span></div>
+   <div class="hk"><kbd>Tab</kbd><span>Search tab</span></div>
+   <div class="hk"><kbd>Esc</kbd><span>Close</span></div>
+   <div class="hk"><kbd>Enter</kbd><span>Select</span></div>
+  </div>
+  <div id="help-hint">PRESS ANY KEY TO CLOSE</div>
  </div>
 </div>
 <script src="js/data.js"></script>

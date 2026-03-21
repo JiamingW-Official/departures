@@ -37,19 +37,26 @@ function transformFlight(f, type) {
   const origin = airport.origin || {};
   const dest = airport.destination || {};
 
-  /* Map FR24 status → AviationStack-like status */
-  const genericStatus = status.generic?.status?.text || '';
+  /* Map FR24 status → AviationStack-like status
+     IMPORTANT: do NOT use statusType (departure/arrival) — it's the schedule type, not flight state */
+  const genericStatus = (status.generic?.status?.text || '').toLowerCase();
   let flightStatus = 'scheduled';
   if (genericStatus === 'landed') flightStatus = 'landed';
   else if (genericStatus === 'departed') flightStatus = 'active';
-  else if (genericStatus === 'canceled') flightStatus = 'cancelled';
-  else if (genericStatus === 'estimated') flightStatus = 'scheduled';
-  else if (genericStatus === 'delayed') flightStatus = 'scheduled';
+  else if (genericStatus === 'canceled' || genericStatus === 'cancelled') flightStatus = 'cancelled';
+  else if (genericStatus === 'diverted') flightStatus = 'diverted';
+  else if (genericStatus === 'delayed') flightStatus = 'delayed';
+  else if (genericStatus === 'estimated' || genericStatus === 'scheduled') flightStatus = 'scheduled';
 
-  /* Extract flight number parts */
+  /* Extract flight number parts — strip airline prefix (handles mixed alphanumeric codes like 2I, M6, F9) */
   const flNum = ident.number?.default || '';
   const alCode = airline.code?.iata || '';
-  const numPart = flNum.replace(/^[A-Z]{2,3}/i, '');
+  let numPart = flNum;
+  if (alCode && flNum.toUpperCase().startsWith(alCode.toUpperCase())) {
+    numPart = flNum.substring(alCode.length);
+  } else {
+    numPart = flNum.replace(/^[A-Z0-9]{2,3}(?=\d)/i, '');
+  }
 
   /* Build timestamps from unix → ISO strings */
   const depSched = sched.departure ? new Date(sched.departure * 1000).toISOString() : null;
@@ -100,9 +107,9 @@ async function getFlights(airport, type) {
   if (cached && Date.now() - cached.ts < CACHE_TTL) return cached.data;
 
   try {
-    /* Fetch up to 3 pages (300 flights) */
+    /* Fetch up to 5 pages (500 flights) for next-day coverage */
     const allFlights = [];
-    for (let page = 1; page <= 3; page++) {
+    for (let page = 1; page <= 5; page++) {
       const details = await frApi.getAirportDetails(airport, FR_LIMIT, page);
       const plugin = details?.airport?.pluginData;
       if (!plugin?.schedule) break;

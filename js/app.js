@@ -3,6 +3,7 @@
 let ROWS;
 let cur=0, pg=0;
 let favs=JSON.parse(localStorage.getItem('fav_airports')||'[]');
+let recent=JSON.parse(localStorage.getItem('recent_airports')||'[]');
 let _clockCells=[], _iataCells=[];
 let depF=[], arrF=[];
 let fT, pT;
@@ -80,32 +81,8 @@ function hFlip(cell,nc,dur){
   };
 }
 
-/* ═══ SUBTITLE LOOKUP ═══ */
-const ARR_LABELS={
-  'DEPARTURES':'ARRIVALS','DEPARTS':'ARRIVÉES',
-  'ABFLUG':'ANKUNFT','VERTREK':'AANKOMST',
-  'PARTENZE':'ARRIVI','KALKIŞLAR':'VARIŞLAR',
-  'SALIDAS':'LLEGADAS','PARTIDAS':'CHEGADAS',
-  'AVGANGER':'ANKOMSTER','AVGÅNGAR':'ANKOMSTER',
-  'LÄHDÖT':'SAAPUVAT','ODLOTY':'PRZYLOTY',
-  'ODLETY':'PŘÍLETY','INDULÁS':'ÉRKEZÉS',
-  'ΑΝΑΧΩΡΗΣΕΙΣ':'ΑΦΙΞΕΙΣ',
-  '出発':'到着','出发':'到达',
-  '離港':'抵港','출발':'도착','出境':'入境'
-};
-const _arrRe=new RegExp(Object.keys(ARR_LABELS).join('|'),'g');
-function getSubtitle(ap,mode){
-  const s=ap.s||'DEPARTURES';
-  if(mode!=='arr')return s;
-  return s.replace(_arrRe,m=>ARR_LABELS[m]||m);
-}
-function getDualSubtitle(ap){
-  const s=ap.s||'DEPARTURES';
-  const arrS=getSubtitle(ap,'arr');
-  const dp=s.split(' · '), ap2=arrS.split(' · ');
-  if(dp[0]&&ap2[0]&&dp[0]!==ap2[0]) return dp[0]+' · '+ap2[0];
-  return 'DEPARTURES · ARRIVALS';
-}
+/* ═══ SUBTITLE ═══ */
+function getDualSubtitle(){return 'DEPARTURES \u00b7 ARRIVALS'}
 
 /* ═══ PAGE UTILS ═══ */
 function findNowPage(flights){
@@ -132,21 +109,44 @@ function flightCount(){return Math.max(depF.length,arrF.length)}
 
 /* ═══ LAYOUT ═══ */
 function calcRows(){
+  /* Estimate row count from viewport — used before DOM is built */
   const cw=Math.max(13,Math.min(30,(window.innerWidth-84)/84));
   const ch=cw*1.68;
   const hdr=document.getElementById('hdr');
   const nav=document.getElementById('nav');
-  const used=(hdr?hdr.offsetHeight:50)+(nav?nav.offsetHeight:30)+12;
-  const av=window.innerHeight-used;
-  return Math.min(22,Math.max(8,Math.floor(av/(ch+3))));
+  const sb=document.getElementById('stats-bar');
+  const chrome=(hdr?hdr.offsetHeight:50)+(nav?nav.offsetHeight:30)+(sb?sb.offsetHeight:0);
+  /* Rough internal overhead: flights padding + col-label pad + col-hdr */
+  const internal=Math.ceil(cw*0.45+Math.max(20,Math.min(44,window.innerWidth*0.025))+cw*0.55+8);
+  const av=window.innerHeight-chrome-internal;
+  return Math.min(22,Math.max(6,Math.floor(av/(ch+3))));
 }
 function initLayout(){
   ROWS=calcRows();
   document.documentElement.style.setProperty('--rows',ROWS);
-  const hdr=document.getElementById('hdr');
-  const nav=document.getElementById('nav');
-  const used=(hdr?hdr.offsetHeight:50)+(nav?nav.offsetHeight:30)+12;
-  document.documentElement.style.setProperty('--board-offset',used+'px');
+}
+function fitLayout(){
+  /* Bulletproof: measure from first .frow top to #flights bottom padding edge.
+     No manual overhead math — just real DOM positions. */
+  const flights=document.getElementById('flights');
+  if(!flights)return;
+  const col=document.getElementById('colL');
+  if(!col)return;
+  const firstRow=col.querySelector('.frow');
+  if(!firstRow)return;
+  const rowCount=col.querySelectorAll('.frow').length;
+  if(!rowCount)return;
+  const fRect=flights.getBoundingClientRect();
+  const padB=parseFloat(getComputedStyle(flights).paddingBottom)||0;
+  const rowTop=firstRow.getBoundingClientRect().top;
+  const avail=fRect.bottom-padB-rowTop;
+  const rgap=2;
+  const ch=Math.max(10,Math.floor((avail-(rowCount-1)*rgap)/rowCount));
+  const cw=Math.max(13,Math.min(30,(window.innerWidth-84)/84));
+  const fs=Math.min(cw*0.94,ch*0.55);
+  document.documentElement.style.setProperty('--ch',ch+'px');
+  document.documentElement.style.setProperty('--fs',fs+'px');
+  CELL_W=0;CELL_H=0;
 }
 
 /* ═══ DOM BUILDERS ═══ */
@@ -280,6 +280,7 @@ function updatePgInfo(){
   const tp=totalPages();
   const fc=flightCount();
   _elPg.textContent='PAGE '+(pg+1)+'/'+tp+(fc?' \u00b7 '+fc+' FLIGHTS':'');
+  updateNavPage();
 }
 
 function updatePage(animate){
@@ -365,64 +366,129 @@ function mapStatus(f,type){
   const st=f.flight_status;
   const dep=f.departure||{}, arr=f.arrival||{};
   const delay=type==='dep'?dep.delay:arr.delay;
+  const hasDelay=delay&&delay>0;
 
-  if(st==='cancelled') return 'CANCELLED';
-  if(st==='diverted') return 'CANCELLED';
+  if(st==='cancelled'||st==='diverted') return 'CANCELLED';
 
   if(type==='dep'){
-    if(st==='landed'||st==='active') return 'DEPARTED';
+    if(st==='landed') return 'DEPARTED';
+    if(st==='active'&&dep.actual) return 'DEPARTED';
     if(dep.actual) return 'DEPARTED';
     const sched=dep.scheduled?new Date(dep.scheduled):null;
     if(sched){
       const diff=(sched.getTime()-Date.now())/60000;
-      if(diff<-5) return 'DEPARTED';
+      if(diff<-10) return 'DEPARTED';
+      if(diff<-3) return hasDelay?'DELAYED':'DEPARTED';
       if(diff<0) return 'LAST CALL';
-      if(diff<=10) return 'BOARDING';
-      if(diff<=25) return delay>0?'DELAYED':'GATE OPEN';
-      if(diff<=45) return delay>0?'DELAYED':'GATE OPEN';
+      if(diff<=8) return 'BOARDING';
+      if(diff<=20) return hasDelay?'DELAYED':'GATE OPEN';
+      if(diff<=40) return hasDelay?'DELAYED':'GATE OPEN';
+      if(diff<=90) return hasDelay?'DELAYED':'ON TIME';
     }
-    return delay>0?'DELAYED':'ON TIME';
+    if(st==='delayed'||hasDelay) return 'DELAYED';
+    return 'ON TIME';
   }else{
     if(st==='landed') return 'LANDED';
     if(arr.actual) return 'LANDED';
     const sched=arr.scheduled?new Date(arr.scheduled):null;
     if(sched){
       const diff=(sched.getTime()-Date.now())/60000;
-      if(diff<-5) return 'LANDED';
-      if(diff<=5) return 'ARRIVING';
-      if(diff<=30) return delay>0?'DELAYED':'EXPECTED';
+      if(diff<-10) return 'LANDED';
+      if(diff<-3) return hasDelay?'DELAYED':'LANDED';
+      if(diff<=3) return 'ARRIVING';
+      if(diff<=15) return hasDelay?'DELAYED':'EXPECTED';
+      if(diff<=45) return hasDelay?'DELAYED':'EXPECTED';
+      if(diff<=90) return hasDelay?'DELAYED':'ON TIME';
     }
-    return delay>0?'DELAYED':'ON TIME';
+    if(st==='delayed'||hasDelay) return 'DELAYED';
+    return 'ON TIME';
   }
 }
 
-function parseApiFlights(data,type){
+/* Shorten airport/city names like real FIDS boards */
+const CITY_SHORT={
+SJU:'SAN JUAN',SDQ:'STO DOMINGO',LGA:'NEW YORK LGA',LAS:'LAS VEGAS',
+MSY:'NEW ORLEANS',GUA:'GUATEMALA CITY',POS:'PORT O SPAIN',
+DCA:'WASHINGTON DC',IAD:'WASHINGTON IAD',BWI:'BALTIMORE',
+MDW:'CHICAGO MIDWAY',MDE:'MEDELLIN',CTG:'CARTAGENA',
+MBJ:'MONTEGO BAY',SJO:'SAN JOSE CR',SAP:'SAN PEDRO SULA',
+BZE:'BELIZE CITY',PUJ:'PUNTA CANA',GCM:'GRAND CAYMAN',
+SXM:'ST MAARTEN',STT:'ST THOMAS',STX:'ST CROIX',
+UVF:'ST LUCIA',SKB:'ST KITTS',ANU:'ANTIGUA',BON:'BONAIRE',
+AUA:'ARUBA',GND:'GRENADA',BDA:'BERMUDA',NAS:'NASSAU',
+GIG:'RIO DE JANEIRO',VCP:'CAMPINAS',EZE:'BUENOS AIRES',
+DOH:'DOHA',GRU:'SAO PAULO',YUL:'MONTREAL',YOW:'OTTAWA',
+DTW:'DETROIT',CMH:'COLUMBUS',SDF:'LOUISVILLE',MSP:'MINNEAPOLIS',
+MCI:'KANSAS CITY',SLC:'SALT LAKE CITY',BNA:'NASHVILLE',
+RDU:'RALEIGH DURHAM',GSP:'GREENVILLE SC',JAX:'JACKSONVILLE',
+IND:'INDIANAPOLIS',AUS:'AUSTIN',TPA:'TAMPA',SRQ:'SARASOTA',
+PNS:'PENSACOLA',SAV:'SAVANNAH',CLE:'CLEVELAND',MKE:'MILWAUKEE',
+PIT:'PITTSBURGH',ORF:'NORFOLK',CHS:'CHARLESTON',MEM:'MEMPHIS',
+OMA:'OMAHA',CLO:'CALI',BAQ:'BARRANQUILLA',MGA:'MANAGUA',
+LRM:'LA ROMANA',CAP:'CAP HAITIEN',KIN:'KINGSTON',HOG:'HOLGUIN',
+DAL:'DALLAS LOVE',FPO:'FREEPORT',EYW:'KEY WEST',CZM:'COZUMEL',
+GEO:'GEORGETOWN',STI:'SANTIAGO DR',LIR:'LIBERIA CR',
+};
+function shortDsName(raw,iata){
+  /* 1. Check our destinations DB */
+  const entry=DS_MAP[iata];
+  if(entry)return entry[0];
+  /* 2. Check city shortname lookup */
+  if(CITY_SHORT[iata])return CITY_SHORT[iata];
+  /* 3. Strip common suffixes */
+  let s=raw.toUpperCase()
+    .replace(/\b(INTERNATIONAL|INTL\.?|AIRPORT|AEROPORTO?|AEROPORT|AEROPUERTO|FLUGHAFEN|TERMINAL\s*\d*)\b/g,'')
+    .replace(/[-]/g,' ').replace(/\s+/g,' ').trim();
+  if(s.length<=W_DS)return s;
+  /* 4. Progressively remove trailing words until it fits */
+  const words=s.split(' ');
+  while(words.length>1&&words.join(' ').length>W_DS)words.pop();
+  return words.join(' ').substring(0,W_DS);
+}
+
+function parseApiFlights(data,type,apCode){
   if(!data||!data.data||!data.data.length) return [];
   const flights=[];
   const items=data.data;
+  const tz=TZ[apCode];
+  const now=new Date();
+  const todayStr=tz?now.toLocaleDateString('en-CA',{timeZone:tz}):null;
   for(let i=0;i<items.length;i++){
     const f=items[i];
     const dep=f.departure||{}, arr=f.arrival||{};
     const al=(f.airline?.iata||'').padEnd(W_AL).substring(0,W_AL);
     if(!al.trim()) continue;
     const fn=(f.flight?.number||'').padStart(W_FN).substring(0,W_FN);
-    const dsAirport=type==='dep'?(arr.iata||''):(dep.iata||'');
-    const dsName=type==='dep'?(arr.airport||dsAirport):(dep.airport||dsAirport);
-    const ds=dsName.toUpperCase().substring(0,W_DS).padEnd(W_DS);
+    const dsIata=type==='dep'?(arr.iata||''):(dep.iata||'');
+    const dsRaw=type==='dep'?(arr.airport||dsIata):(dep.airport||dsIata);
+    const dsShort=shortDsName(dsRaw,dsIata);
+    const ds=dsShort.substring(0,W_DS).padEnd(W_DS);
     const schedStr=type==='dep'?dep.scheduled:arr.scheduled;
-    let tm='     ', rawMin=0;
+    let tm='     ', rawMin=0, schedEpoch=0;
     if(schedStr){
       const d=new Date(schedStr);
-      tm=p2(d.getHours())+':'+p2(d.getMinutes());
-      rawMin=d.getHours()*60+d.getMinutes();
+      schedEpoch=d.getTime();
+      if(tz){
+        /* Use airport timezone for display & sorting */
+        const tParts=d.toLocaleTimeString('en-GB',{timeZone:tz,hour12:false}).split(':');
+        tm=tParts[0]+':'+tParts[1];
+        const localMin=parseInt(tParts[0])*60+parseInt(tParts[1]);
+        const dateStr=d.toLocaleDateString('en-CA',{timeZone:tz});
+        const dayOff=dateStr>todayStr?1:(dateStr<todayStr?-1:0);
+        rawMin=localMin+dayOff*1440;
+      }else{
+        tm=p2(d.getHours())+':'+p2(d.getMinutes());
+        rawMin=d.getHours()*60+d.getMinutes();
+      }
     }
     const gate=type==='dep'?(dep.gate||''):(arr.gate||'');
     const terminal=type==='dep'?(dep.terminal||''):(arr.terminal||'');
     const gtRaw=gate?String(gate):(terminal?'T'+terminal:'');
     const gt=gtRaw.substring(0,W_GT).padEnd(W_GT);
+    const flDelay=type==='dep'?(dep.delay||0):(arr.delay||0);
     const sr=mapStatus(f,type);
     const st=sr.padEnd(W_ST).substring(0,W_ST);
-    flights.push({al,fn,ds,tm,gt,st,sr,_t:rawMin});
+    flights.push({al,fn,ds,tm,gt,st,sr,_t:rawMin,_sched:schedEpoch,_delay:flDelay});
   }
   flights.sort((a,b)=>a._t-b._t);
   return flights;
@@ -432,10 +498,44 @@ async function fetchRealFlights(airport,type){
   try{
     const r=await fetch(`/api/flights?airport=${airport}&type=${type}`);
     const data=await r.json();
-    return parseApiFlights(data,type);
+    return parseApiFlights(data,type,airport);
   }catch(e){
     console.warn('API fetch failed:',e);
     return null;
+  }
+}
+
+/* ═══ EXTEND & BALANCE ═══ */
+function extendAndBalance(a){
+  /* Compute current airport-local minutes */
+  const tz=TZ[a.c];
+  const now=new Date();
+  let cm;
+  if(tz){
+    const parts=now.toLocaleTimeString('en-GB',{timeZone:tz,hour12:false}).split(':');
+    cm=parseInt(parts[0])*60+parseInt(parts[1]);
+  }else{cm=now.getHours()*60+now.getMinutes()}
+  /* Target: cover from now until 24h later */
+  const targetEnd=cm+1440;
+  /* Extend departures into next day if needed */
+  const depEnd=depF.length?depF[depF.length-1]._t:0;
+  if(depEnd<targetEnd){
+    const need=Math.max(100,Math.ceil((targetEnd-depEnd)/5));
+    depF=[...depF,...genF(a,need,false,depEnd+5)];
+  }
+  /* Extend arrivals into next day if needed */
+  const arrEnd=arrF.length?arrF[arrF.length-1]._t:0;
+  if(arrEnd<targetEnd){
+    const need=Math.max(100,Math.ceil((targetEnd-arrEnd)/5));
+    arrF=[...arrF,...genF(a,need,true,arrEnd+5)];
+  }
+  /* Balance columns so every page is full */
+  const maxLen=Math.max(depF.length,arrF.length);
+  if(depF.length<maxLen){
+    depF=[...depF,...genF(a,maxLen-depF.length,false,depF[depF.length-1]._t+5)];
+  }
+  if(arrF.length<maxLen){
+    arrF=[...arrF,...genF(a,maxLen-arrF.length,true,arrF[arrF.length-1]._t+5)];
   }
 }
 
@@ -455,16 +555,21 @@ async function loadAirport(idx,animate){
       fetchRealFlights(a.c,'dep'),
       fetchRealFlights(a.c,'arr')
     ]);
+    lastFetchTime=Date.now();
     if(rd&&rd.length) depF=rd;
-    else depF=genF(a,350,false,0);
+    else depF=genF(a,500,false,0);
     if(ra&&ra.length) arrF=ra;
-    else arrF=genF(a,350,true,0);
+    else arrF=genF(a,500,true,0);
   }else{
-    depF=genF(a,350,false,0);
-    arrF=genF(a,350,true,0);
+    depF=genF(a,500,false,0);
+    arrF=genF(a,500,true,0);
   }
 
+  /* Extend + balance: ensure 24h coverage from now into next day */
+  extendAndBalance(a);
+
   _elFlights.classList.remove('loading');
+  renderStats();
 
   pg=findNowPage(depF);
   updatePage(animate);
@@ -473,6 +578,74 @@ async function loadAirport(idx,animate){
 
   /* Update clock immediately for new timezone */
   tick();
+}
+
+/* ═══ LIVE STATUS REFRESH ═══ */
+function computeStatus(type,diff,hasDelay){
+  if(type==='dep'){
+    if(diff<-10)return'DEPARTED';
+    if(diff<-3)return hasDelay?'DELAYED':'DEPARTED';
+    if(diff<0)return'LAST CALL';
+    if(diff<=8)return'BOARDING';
+    if(diff<=20)return hasDelay?'DELAYED':'GATE OPEN';
+    if(diff<=40)return hasDelay?'DELAYED':'GATE OPEN';
+    if(diff<=90)return hasDelay?'DELAYED':'ON TIME';
+    return hasDelay?'DELAYED':'ON TIME';
+  }else{
+    if(diff<-10)return'LANDED';
+    if(diff<-3)return hasDelay?'DELAYED':'LANDED';
+    if(diff<=3)return'ARRIVING';
+    if(diff<=15)return hasDelay?'DELAYED':'EXPECTED';
+    if(diff<=45)return hasDelay?'DELAYED':'EXPECTED';
+    if(diff<=90)return hasDelay?'DELAYED':'ON TIME';
+    return hasDelay?'DELAYED':'ON TIME';
+  }
+}
+function refreshStatuses(){
+  const code=AP[cur].c;
+  const tz=TZ[code];
+  const now=new Date();
+  let cm;
+  if(tz){
+    const parts=now.toLocaleTimeString('en-GB',{timeZone:tz,hour12:false}).split(':');
+    cm=parseInt(parts[0])*60+parseInt(parts[1]);
+  }else{cm=now.getHours()*60+now.getMinutes()}
+  const nowMs=now.getTime();
+  let changed=false;
+  [['dep',depF],['arr',arrF]].forEach(([type,flights])=>{
+    for(let i=0;i<flights.length;i++){
+      const f=flights[i];
+      const diff=f._sched?(f._sched-nowMs)/60000:(f._t-cm);
+      const newSr=computeStatus(type,diff,(f._delay||0)>0);
+      if(newSr!==f.sr){
+        f.sr=newSr;
+        f.st=newSr.padEnd(W_ST).substring(0,W_ST);
+        changed=true;
+      }
+    }
+  });
+  if(changed){updateStatusCells();updateNavStats();renderStats()}
+}
+function updateStatusCells(){
+  const s=pg*ROWS;
+  const lf=depF.slice(s,s+ROWS),rf=arrF.slice(s,s+ROWS);
+  [['colL',lf],['colR',rf]].forEach(([cid,fls])=>{
+    const rows=boardRows[cid];
+    for(let ri=0;ri<rows.length;ri++){
+      const fl=fls[ri]||EMPTY;
+      const row=rows[ri];
+      if(row._fl.sr===fl.sr)continue; /* skip unchanged */
+      const sc=statusCls(fl.sr),bk=breathCls(fl.sr);
+      const ss=W_AL+W_FN+W_DS+W_TM+W_GT;
+      const cells=row._cells;
+      for(let i=ss;i<cells.length;i++){
+        const nc=fl.st[i-ss]||' ';
+        cells[i].className='cell '+sc+' '+bk;
+        if(cells[i]._ch!==nc){cells[i]._ch=nc;cells[i]._fr.textContent=nc}
+      }
+      row._fl=fl;
+    }
+  });
 }
 
 /* ═══ RANDOM FLIP ═══ */
@@ -505,25 +678,38 @@ function rFlip(){
 async function autoP(){
   userIdle++;
   /* Only auto-page if user has been idle for at least 1 cycle */
-  if(userIdle<2){pT=setTimeout(autoP,12e3);return}
-  if(needsRefresh){
+  if(userIdle<2){pT=setTimeout(autoP,30e3);return}
+
+  const pages=totalPages();
+  const nextPg=pg+1;
+
+  if(nextPg>=pages||needsRefresh){
+    /* Reached end or stale — refresh & return to now */
+    const a=AP[cur];
     if(useRealData){
       const [rd,ra]=await Promise.all([
-        fetchRealFlights(AP[cur].c,'dep'),
-        fetchRealFlights(AP[cur].c,'arr')
+        fetchRealFlights(a.c,'dep'),
+        fetchRealFlights(a.c,'arr')
       ]);
+      lastFetchTime=Date.now();
       if(rd&&rd.length) depF=rd;
+      else depF=genF(a,500,false,0);
       if(ra&&ra.length) arrF=ra;
+      else arrF=genF(a,500,true,0);
     }else{
-      depF=genF(AP[cur],350,false,0);
-      arrF=genF(AP[cur],350,true,0);
+      depF=genF(a,500,false,0);
+      arrF=genF(a,500,true,0);
     }
+    extendAndBalance(a);
+    renderStats();
     pg=findNowPage(depF);
     needsRefresh=false;
+  }else{
+    /* Forward only — never jump backward */
+    pg=nextPg;
   }
-  const pages=totalPages();
-  if(pages>1){pg=(pg+1)%pages; updatePage(true)}
-  pT=setTimeout(autoP,12e3);
+  updatePage(true);
+  pT=setTimeout(autoP,30e3);
 }
 
 /* ═══ AIRPORT SWITCH ═══ */
@@ -534,9 +720,10 @@ async function sw(i){
   flipGen++;
   cur=i;
   userIdle=0;
+  trackRecent(AP[i].c);
   await loadAirport(i,true);
   fT=setTimeout(rFlip,1200);
-  pT=setTimeout(autoP,12e3);
+  pT=setTimeout(autoP,30e3);
 }
 
 /* ═══ FAVORITES ═══ */
@@ -548,33 +735,85 @@ function toggleFav(){
   localStorage.setItem('fav_airports',JSON.stringify(favs));
   renderNav(cur);
 }
-function renderNav(idx){
-  const liveTag=useRealData?'<button class="live-btn" disabled>LIVE</button>':'';
-  const isFav=favs.includes(AP[idx].c);
+let lastFetchTime=0;
+/* Build nav structure once, then update parts */
+function initNav(){
   _elNavF.innerHTML=
-    `<button onclick="toggleMute()" id="mute-btn" class="mute-btn${audioMuted?'':' on'}">${audioMuted?'\u266A OFF':'\u266A ON'}</button>`+
-    '<button onclick="openSearch()" class="search-btn">/  SEARCH</button>'+
-    `<button onclick="toggleFav()" class="fav-btn${isFav?' on':''}">${isFav?'\u2605':'\u2606'}</button>`+
-    liveTag;
-
-  /* Build nav: favorites first, then divider, then all */
-  let html='';
-  const favIdxs=[];
-  favs.forEach(code=>{const fi=AP.findIndex(a=>a.c===code);if(fi>=0)favIdxs.push(fi)});
-  if(favIdxs.length){
-    favIdxs.forEach(fi=>{
-      html+=`<button onclick="sw(${fi})" class="fav${fi===idx?' act':''}">${AP[fi].c}</button>`;
-    });
-    html+='<span class="nav-div"></span>';
+    '<button class="mute-btn" id="nb-mute"></button>'+
+    '<button class="fav-btn" id="nb-fav"></button>'+
+    '<span class="live-tag" id="nb-live"><span class="live-dot-sm"></span><span id="nb-live-txt">LIVE</span></span>';
+  _elNavS.innerHTML=
+    '<div class="nav-recent" id="nb-recent"></div>'+
+    '<span class="nav-div" id="nb-d1"></span>'+
+    '<div class="nav-stats" id="nb-stats"></div>'+
+    '<span class="nav-div" id="nb-d2"></span>'+
+    '<button class="nav-pg" id="nb-pg" onclick="navNextPage()"><span id="nb-pg-txt"></span><div class="nav-pg-bar" id="nb-pg-bar"></div></button>'+
+    '<span class="nav-div"></span>'+
+    '<div class="nav-search" onclick="openSearch()"><span class="ns-key">/</span>SEARCH</div>';
+  document.getElementById('nb-mute').onclick=()=>toggleMute();
+  document.getElementById('nb-fav').onclick=()=>toggleFav();
+}
+function renderNav(idx){
+  /* Mute */
+  const mb=document.getElementById('nb-mute');
+  mb.textContent='\u266A';mb.className='mute-btn'+(audioMuted?'':' on');
+  /* Fav */
+  const isFav=favs.includes(AP[idx].c);
+  const fb=document.getElementById('nb-fav');
+  fb.textContent=isFav?'\u2605':'\u2606';fb.className='fav-btn'+(isFav?' on':'');
+  /* LIVE + age */
+  const lv=document.getElementById('nb-live');
+  lv.style.display=useRealData?'flex':'none';
+  if(useRealData){
+    const ago=lastFetchTime?Math.floor((Date.now()-lastFetchTime)/60000):0;
+    document.getElementById('nb-live-txt').textContent=ago>0?'LIVE \u00b7 '+ago+'M':'LIVE';
   }
-  AP.forEach((x,i)=>{
-    html+=`<button onclick="sw(${i})" class="${i===idx?'act':''}">${x.c}</button>`;
+  /* Recent airports */
+  const rc=document.getElementById('nb-recent');
+  let rh='';
+  recent.slice(0,5).forEach(c=>{
+    const fi=AP.findIndex(a=>a.c===c);
+    if(fi<0)return;
+    rh+=`<button onclick="sw(${fi})" class="${fi===idx?'act':''}">${c}</button>`;
   });
-  _elNavS.innerHTML=html;
-  setTimeout(()=>{
-    const b=_elNavS.querySelector('.act');
-    if(b) b.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});
-  },60);
+  rc.innerHTML=rh;
+  document.getElementById('nb-d1').style.display=rh?'':'none';
+  /* Stats */
+  updateNavStats();
+  /* Page */
+  updateNavPage();
+}
+function updateNavStats(){
+  const el=document.getElementById('nb-stats');
+  if(!el)return;
+  const all=[...depF,...arrF];
+  if(!all.length){el.innerHTML='';document.getElementById('nb-d2').style.display='none';return}
+  document.getElementById('nb-d2').style.display='';
+  const c={};
+  all.forEach(f=>{if(f.sr)c[f.sr]=(c[f.sr]||0)+1});
+  const onTime=(c['ON TIME']||0)+(c['GATE OPEN']||0)+(c['EXPECTED']||0);
+  const boarding=(c['BOARDING']||0)+(c['ARRIVING']||0);
+  const delayed=(c['DELAYED']||0)+(c['LAST CALL']||0)+(c['CANCELLED']||0);
+  const h=[];
+  if(onTime)h.push(`<span class="ns-item ns-on"><span class="ns-dot"></span>${onTime}</span>`);
+  if(boarding)h.push(`<span class="ns-item ns-bo"><span class="ns-dot"></span>${boarding}</span>`);
+  if(delayed)h.push(`<span class="ns-item ns-de"><span class="ns-dot"></span>${delayed}</span>`);
+  el.innerHTML=h.join('');
+}
+function updateNavPage(){
+  const t=document.getElementById('nb-pg-txt');
+  const b=document.getElementById('nb-pg-bar');
+  if(!t)return;
+  const tp=totalPages();
+  t.textContent=(pg+1)+'/'+tp;
+  b.style.width=tp>1?((pg+1)/tp*100).toFixed(1)+'%':'100%';
+}
+function navNextPage(){
+  userIdle=0;clearTimeout(pT);
+  const pages=totalPages();
+  pg=(pg+1)%pages;updatePage(true);
+  updateNavPage();
+  pT=setTimeout(autoP,30e3);
 }
 
 /* ═══ JUMP TO NOW ═══ */
@@ -583,7 +822,7 @@ function jumpToNow(){
   userIdle=0;
   pg=findNowPage(depF);
   updatePage(true);
-  pT=setTimeout(autoP,12e3);
+  pT=setTimeout(autoP,30e3);
 }
 
 /* ═══ FULLSCREEN ═══ */
@@ -618,12 +857,18 @@ function tick(){
   }
   _elDate.textContent=t.toLocaleDateString('en-US',{timeZone:tz,weekday:'short',day:'numeric',month:'short',year:'numeric'}).toUpperCase();
   _elTz.textContent=getTzAbbr(code);
+  /* Update LIVE age every tick */
+  if(useRealData&&lastFetchTime){
+    const ago=Math.floor((Date.now()-lastFetchTime)/60000);
+    const el=document.getElementById('nb-live-txt');
+    if(el)el.textContent=ago>0?'LIVE \u00b7 '+ago+'M':'LIVE';
+  }
 }
 
 /* ═══ DUST PARTICLES ═══ */
 function initDust(){
   const c=_elFlights;
-  for(let i=0;i<16;i++){
+  for(let i=0;i<8;i++){
     const d=document.createElement('div');d.className='dust';
     const sz=1+Math.random()*1.5;
     const x=Math.random()*100, y=15+Math.random()*75;
@@ -638,10 +883,49 @@ function initDust(){
   }
 }
 
+/* ═══ RECENT AIRPORTS ═══ */
+function trackRecent(code){
+  recent=recent.filter(c=>c!==code);
+  recent.unshift(code);
+  if(recent.length>5)recent=recent.slice(0,5);
+  localStorage.setItem('recent_airports',JSON.stringify(recent));
+}
+
+/* ═══ STATS BAR ═══ */
+function renderStats(){
+  const bar=document.getElementById('stats-bar');
+  if(!bar)return;
+  const all=[...depF,...arrF];
+  const counts={};
+  all.forEach(f=>{if(f.sr)counts[f.sr]=(counts[f.sr]||0)+1});
+  const total=all.length||1;
+  const segs=[
+    ['ON TIME','#3a3828'],['GATE OPEN','#2a4a3a'],['EXPECTED','#2a3a4a'],
+    ['BOARDING','#50d070'],['ARRIVING','#50d070'],
+    ['DELAYED','#e05040'],['LAST CALL','#c04030'],
+    ['DEPARTED','#1a1810'],['LANDED','#1a1810'],
+    ['CANCELLED','#802020']
+  ];
+  bar.innerHTML=segs.map(([s,c])=>{
+    const n=counts[s]||0;
+    if(!n)return'';
+    return`<div class="stat-seg" style="width:${(n/total*100).toFixed(1)}%;background:${c}" title="${s}: ${n}"></div>`;
+  }).join('');
+}
+
+/* ═══ HELP OVERLAY ═══ */
+let helpOpen=false;
+function toggleHelp(){
+  helpOpen=!helpOpen;
+  document.getElementById('help').classList.toggle('open',helpOpen);
+}
+
 /* ═══ SEARCH ═══ */
-let srchOpen=false, srchIdx=0, srchRes=[];
+let srchOpen=false, srchIdx=0;
 let srchTab='ap';
-let srchFlRes=[];
+let srchFlFilter='ALL';
+let srchItems=[], srchFlRes=[];
+let _srchT;
 
 const SR_COLORS={
   'ON TIME':'#e0d8b8','BOARDING':'#50d070','GATE OPEN':'#58a0d8',
@@ -650,81 +934,138 @@ const SR_COLORS={
   'EXPECTED':'#58a0d8'
 };
 
+function buildFlightFilters(){
+  const el=document.getElementById('search-filters');
+  const chips=['ALL','BOARDING','DELAYED','GATE OPEN','DEPARTED','LANDED','CANCELLED'];
+  el.innerHTML=chips.map(f=>`<button class="sf-chip${f===srchFlFilter?' act':''}" onclick="setFlFilter('${f}')">${f}</button>`).join('');
+}
+function setFlFilter(f){
+  srchFlFilter=f;srchIdx=0;
+  document.querySelectorAll('.sf-chip').forEach(b=>b.classList.toggle('act',b.textContent===f));
+  filterFlights(document.getElementById('search-input').value);
+}
 function setSearchTab(tab){
-  srchTab=tab;
-  srchIdx=0;
-  const tabs=document.querySelectorAll('.stab');
-  tabs.forEach(t=>t.classList.toggle('act',t.textContent.trim()===(tab==='ap'?'AIRPORTS':'FLIGHTS')));
+  srchTab=tab;srchIdx=0;srchFlFilter='ALL';
+  document.querySelectorAll('.stab').forEach(t=>t.classList.toggle('act',t.textContent.trim()===(tab==='ap'?'AIRPORTS':'FLIGHTS')));
   const inp=document.getElementById('search-input');
+  const filters=document.getElementById('search-filters');
   inp.placeholder=tab==='ap'?'AIRPORT CODE OR NAME...':'FLIGHT, AIRLINE, OR DESTINATION...';
-  inp.value='';
-  inp.focus();
-  if(tab==='ap') filterSearch('');
-  else filterFlights('');
+  inp.value='';inp.focus();
+  if(tab==='ap'){filters.innerHTML='';filterSearch('')}
+  else{buildFlightFilters();filterFlights('')}
 }
 
 function openSearch(){
-  const el=document.getElementById('search');
-  el.classList.add('open');
+  document.getElementById('search').classList.add('open');
   const inp=document.getElementById('search-input');
-  inp.value='';
-  inp.focus();
-  srchIdx=0;
-  if(srchTab==='ap') filterSearch('');
-  else filterFlights('');
+  inp.value='';inp.focus();
+  srchIdx=0;srchFlFilter='ALL';
+  if(srchTab==='ap'){document.getElementById('search-filters').innerHTML='';filterSearch('')}
+  else{buildFlightFilters();filterFlights('')}
   srchOpen=true;
 }
 function closeSearch(){
   document.getElementById('search').classList.remove('open');
-  srchOpen=false;
-  srchIdx=0;
+  srchOpen=false;srchIdx=0;
 }
 
+function highlightMatch(text,q){
+  if(!q)return text;
+  const idx=text.toUpperCase().indexOf(q);
+  if(idx<0)return text;
+  return text.substring(0,idx)+'<span class="si-match">'+text.substring(idx,idx+q.length)+'</span>'+text.substring(idx+q.length);
+}
 function filterSearch(q){
   q=q.toUpperCase().trim();
+  srchItems=[];
   if(!q){
-    srchRes=AP.map((_,i)=>i);
+    /* Empty: recent → favorites → by region */
+    const recentIdxs=recent.map(c=>AP.findIndex(a=>a.c===c)).filter(i=>i>=0);
+    if(recentIdxs.length){
+      srchItems.push({divider:'RECENT'});
+      recentIdxs.forEach(i=>srchItems.push({idx:i}));
+    }
+    const favIdxs=favs.map(c=>AP.findIndex(a=>a.c===c)).filter(i=>i>=0&&!recent.includes(AP[i].c));
+    if(favIdxs.length){
+      srchItems.push({divider:'FAVORITES'});
+      favIdxs.forEach(i=>srchItems.push({idx:i}));
+    }
+    for(const region of Object.keys(REGIONS)){
+      const codes=REGIONS[region];
+      const idxs=codes.map(c=>AP.findIndex(a=>a.c===c)).filter(i=>i>=0);
+      if(idxs.length){
+        srchItems.push({divider:region});
+        idxs.forEach(i=>srchItems.push({idx:i}));
+      }
+    }
   }else{
-    const code=[],name=[];
+    /* Score-based fuzzy ranking */
+    const scored=[];
     AP.forEach((a,i)=>{
-      if(a.c.toUpperCase().includes(q)) code.push(i);
-      else if(a.n.toUpperCase().includes(q)||a.s.toUpperCase().includes(q)) name.push(i);
+      let score=0;
+      const code=a.c,name=a.n.toUpperCase(),sub=(a.s||'').toUpperCase();
+      if(code===q)score=100;
+      else if(code.startsWith(q))score=80;
+      else if(code.includes(q))score=60;
+      else if(name.includes(q))score=40;
+      else if(sub.includes(q))score=20;
+      if(score){
+        if(favs.includes(a.c))score+=5;
+        if(recent.includes(a.c))score+=3;
+        scored.push({idx:i,score});
+      }
     });
-    srchRes=[...code,...name];
+    scored.sort((a,b)=>b.score-a.score);
+    scored.forEach(s=>srchItems.push({idx:s.idx}));
   }
-  srchIdx=Math.min(srchIdx,Math.max(0,srchRes.length-1));
+  srchIdx=Math.min(srchIdx,Math.max(0,countSelectable(srchItems)-1));
   renderSearch();
 }
 function renderSearch(){
   const box=document.getElementById('search-results');
-  if(!srchRes.length){
+  const selCount=countSelectable(srchItems);
+  if(!selCount){
     box.innerHTML='<div class="search-empty">NO AIRPORTS FOUND</div>';
     return;
   }
-  box.innerHTML=srchRes.map((apIdx,i)=>{
-    const a=AP[apIdx];
-    const cls=i===srchIdx?'search-item active':'search-item';
-    const sub=a.s&&a.s!=='DEPARTURES'?`<span class="si-sub">${a.s}</span>`:'';
-    return `<div class="${cls}" onmousedown="selectSearch(${apIdx})">
-      <span class="si-code">${a.c}</span><span class="si-name">${a.n}</span>${sub}</div>`;
+  const q=document.getElementById('search-input').value.toUpperCase().trim();
+  let si=0;
+  box.innerHTML=srchItems.map(item=>{
+    if(item.divider)return`<div class="search-group">${item.divider}</div>`;
+    const a=AP[item.idx];
+    const cls=si===srchIdx?'search-item active':'search-item';
+    const region=AP_REGION[a.c]||'';
+    const isFav=favs.includes(a.c);
+    const codeTxt=highlightMatch(a.c,q);
+    const nameTxt=highlightMatch(a.n,q);
+    const favIcon=isFav?'<span style="color:#c8a830;margin-right:4px">\u2605</span>':'';
+    const regionTag=region&&!q?`<span class="si-region">${region}</span>`:'';
+    const sub=a.s&&a.s!=='DEPARTURES'&&q?`<span class="si-sub">${a.s}</span>`:'';
+    si++;
+    return`<div class="${cls}" onmousedown="selectSearch(${item.idx})">${favIcon}<span class="si-code">${codeTxt}</span><span class="si-name">${nameTxt}</span>${sub}${regionTag}</div>`;
   }).join('');
-  const act=box.querySelector('.search-item.active');
-  if(act) act.scrollIntoView({block:'nearest'});
+  const act=box.querySelector('.active');
+  if(act)act.scrollIntoView({block:'nearest'});
 }
 function selectSearch(idx){
   closeSearch();
-  if(idx!==cur) sw(idx);
+  if(idx!==cur)sw(idx);
 }
 
 function filterFlights(q){
   q=q.toUpperCase().trim();
   srchFlRes=[];
+  const curCode=AP[cur].c;
   const local=[];
   for(let i=0;i<depF.length;i++){
-    if(!q||matchFlight(depF[i],q)) local.push({fl:depF[i],idx:i,col:'L',apIdx:-1});
+    const fl=depF[i];
+    if(srchFlFilter!=='ALL'&&fl.sr!==srchFlFilter)continue;
+    if(!q||matchFlight(fl,q,curCode)) local.push({fl,idx:i,col:'L',apIdx:-1,from:curCode,to:fl.ds.trim()});
   }
   for(let i=0;i<arrF.length;i++){
-    if(!q||matchFlight(arrF[i],q)) local.push({fl:arrF[i],idx:i,col:'R',apIdx:-1});
+    const fl=arrF[i];
+    if(srchFlFilter!=='ALL'&&fl.sr!==srchFlFilter)continue;
+    if(!q||matchFlight(fl,q,curCode)) local.push({fl,idx:i,col:'R',apIdx:-1,from:fl.ds.trim(),to:curCode});
   }
   srchFlRes=local;
   if(q.length>=2){
@@ -738,9 +1079,14 @@ function filterFlights(q){
   renderFlightResults();
 }
 
-function matchFlight(fl,q){
-  const al=fl.al.trim(), fn=fl.fn.trim(), ds=fl.ds.trim(), sr=fl.sr;
-  return al.includes(q)||(al+fn).includes(q)||fn.includes(q)||ds.includes(q)||sr.includes(q);
+function matchFlight(fl,q,curCode){
+  const al=fl.al.trim(),fn=fl.fn.trim(),ds=fl.ds.trim(),sr=fl.sr;
+  if(al.includes(q)||(al+fn).includes(q)||fn.includes(q)||ds.includes(q)||sr.includes(q))return true;
+  /* Also match origin/destination IATA codes */
+  if(curCode&&curCode.includes(q))return true;
+  /* Match IATA code in DS_MAP by destination name */
+  for(const code in DS_MAP){if(code.includes(q)&&DS_MAP[code][0].toUpperCase()===ds)return true}
+  return false;
 }
 
 function searchFamous(q){
@@ -751,7 +1097,7 @@ function searchFamous(q){
     const al=parts[0], from=parts[1], to=parts[2];
     const fn=FAMOUS[key].toString();
     const fullCode=al+fn;
-    if(al.includes(q)||fullCode.includes(q)||(al+' '+fn).includes(q)){
+    if(al.includes(q)||fullCode.includes(q)||(al+' '+fn).includes(q)||from.includes(q)||to.includes(q)){
       if(from===AP[cur].c) continue;
       if(seen.has(key)) continue;
       seen.add(key);
@@ -762,7 +1108,7 @@ function searchFamous(q){
       results.push({
         fl:{al:al.padEnd(W_AL),fn:fn.padStart(W_FN),ds:dsName.padEnd(W_DS).substring(0,W_DS),
             tm:'     ',gt:'    ',st:'         ',sr:''},
-        idx:-1,apIdx,apCode:from
+        idx:-1,apIdx,apCode:from,from,to
       });
       if(results.length>=15) break;
     }
@@ -793,14 +1139,20 @@ function renderFlightResults(){
     const fl=r.fl;
     const cls=si===srchIdx?'search-flight active':'search-flight';
     const stColor=SR_COLORS[fl.sr]||'#e0d8b8';
-    const apTag=r.apIdx>=0?`<span class="sf-ap">${r.apCode||AP[r.apIdx].c}</span>`:
-      (r.col?`<span class="sf-ap">${r.col==='L'?'DEP':'ARR'}</span>`:'');
+    let routeTag='';
+    if(r.from&&r.to){
+      routeTag=`<span class="sf-route">${r.col==='L'?AP[cur].c:r.from}→${r.col==='L'?r.to:AP[cur].c}</span>`;
+    }else if(r.apIdx>=0){
+      routeTag=`<span class="sf-ap">${r.apCode||AP[r.apIdx].c}</span>`;
+    }else if(r.col){
+      routeTag=`<span class="sf-ap">${r.col==='L'?'DEP':'ARR'}</span>`;
+    }
     const html=`<div class="${cls}" onmousedown="selectFlight(${i})">
       <span class="sf-al">${fl.al.trim()}</span>
       <span class="sf-fn">${fl.fn.trim()}</span>
       <span class="sf-ds">${fl.ds.trim()}</span>
       <span class="sf-tm">${fl.tm.trim()}</span>
-      <span class="sf-st" style="color:${stColor}">${fl.sr}</span>${apTag}</div>`;
+      <span class="sf-st" style="color:${stColor}">${fl.sr}</span>${routeTag}</div>`;
     si++;
     return html;
   }).join('');
@@ -822,7 +1174,7 @@ function navigateToFlight(flightIdx,col){
     clearTimeout(pT);
     pg=targetPg;
     updatePage(true);
-    pT=setTimeout(autoP,12e3);
+    pT=setTimeout(autoP,30e3);
   }
   const ri=flightIdx-targetPg*ROWS;
   const cid=col==='R'?'colR':'colL';
@@ -845,7 +1197,7 @@ async function goToFamous(apIdx,al,fn){
     cur=apIdx;
     await loadAirport(apIdx,true);
     fT=setTimeout(rFlip,1200);
-    pT=setTimeout(autoP,12e3);
+    pT=setTimeout(autoP,30e3);
   }
   let target=depF.findIndex(f=>f.al.trim()===al&&f.fn.trim()===fn);
   let col='L';
@@ -860,42 +1212,74 @@ document.getElementById('search').addEventListener('mousedown',e=>{
 });
 document.getElementById('search-input').addEventListener('input',e=>{
   srchIdx=0;
-  if(srchTab==='ap') filterSearch(e.target.value);
-  else filterFlights(e.target.value);
+  clearTimeout(_srchT);
+  _srchT=setTimeout(()=>{
+    if(srchTab==='ap')filterSearch(e.target.value);
+    else filterFlights(e.target.value);
+  },60);
 });
 
 /* ═══ KEYBOARD NAV ═══ */
 document.addEventListener('keydown',e=>{
+  /* Help overlay — any key closes */
+  if(helpOpen){e.preventDefault();toggleHelp();return}
+
   if(srchOpen){
     if(e.key==='Escape'){e.preventDefault();closeSearch();return}
     if(e.key==='Tab'){e.preventDefault();setSearchTab(srchTab==='ap'?'fl':'ap');return}
+    const maxAp=countSelectable(srchItems),maxFl=countSelectable(srchFlRes);
     if(e.key==='ArrowDown'){
       e.preventDefault();
-      if(srchTab==='ap'){srchIdx=Math.min(srchIdx+1,srchRes.length-1);renderSearch()}
-      else{srchIdx=Math.min(srchIdx+1,countSelectable(srchFlRes)-1);renderFlightResults()}
-      return;
+      const max=srchTab==='ap'?maxAp:maxFl;
+      srchIdx=Math.min(srchIdx+1,max-1);
+      srchTab==='ap'?renderSearch():renderFlightResults();return;
     }
     if(e.key==='ArrowUp'){
+      e.preventDefault();srchIdx=Math.max(srchIdx-1,0);
+      srchTab==='ap'?renderSearch():renderFlightResults();return;
+    }
+    if(e.key==='PageDown'){
       e.preventDefault();
-      if(srchTab==='ap'){srchIdx=Math.max(srchIdx-1,0);renderSearch()}
-      else{srchIdx=Math.max(srchIdx-1,0);renderFlightResults()}
-      return;
+      const max=srchTab==='ap'?maxAp:maxFl;
+      srchIdx=Math.min(srchIdx+10,max-1);
+      srchTab==='ap'?renderSearch():renderFlightResults();return;
+    }
+    if(e.key==='PageUp'){
+      e.preventDefault();srchIdx=Math.max(srchIdx-10,0);
+      srchTab==='ap'?renderSearch():renderFlightResults();return;
+    }
+    if(e.key==='Home'){
+      e.preventDefault();srchIdx=0;
+      srchTab==='ap'?renderSearch():renderFlightResults();return;
+    }
+    if(e.key==='End'){
+      e.preventDefault();
+      srchIdx=(srchTab==='ap'?maxAp:maxFl)-1;
+      srchTab==='ap'?renderSearch():renderFlightResults();return;
     }
     if(e.key==='Enter'){
       e.preventDefault();
-      if(srchTab==='ap'){if(srchRes.length)selectSearch(srchRes[srchIdx])}
-      else{const ri=getSelectableIdx(srchFlRes,srchIdx);if(ri>=0) selectFlight(ri)}
+      if(srchTab==='ap'){const ri=getSelectableIdx(srchItems,srchIdx);if(ri>=0)selectSearch(srchItems[ri].idx)}
+      else{const ri=getSelectableIdx(srchFlRes,srchIdx);if(ri>=0)selectFlight(ri)}
       return;
     }
     return;
   }
+
+  if(e.key==='?'){toggleHelp();return}
   if(e.key==='/'){e.preventDefault();openSearch();return}
   if(e.key==='m'||e.key==='M'){toggleMute();return}
   if(e.key==='n'||e.key==='N'){jumpToNow();return}
   if(e.key==='f'||e.key==='F'){toggleFullscreen();return}
   if(e.key==='s'||e.key==='S'){toggleFav();return}
-  if(e.key==='ArrowUp'){e.preventDefault();userIdle=0;clearTimeout(pT);const pages=totalPages();pg=(pg-1+pages)%pages;updatePage(true);pT=setTimeout(autoP,12e3)}
-  if(e.key==='ArrowDown'){e.preventDefault();userIdle=0;clearTimeout(pT);const pages=totalPages();pg=(pg+1)%pages;updatePage(true);pT=setTimeout(autoP,12e3)}
+  /* Number keys 1-9: jump to page */
+  if(e.key>='1'&&e.key<='9'){
+    const tp=parseInt(e.key)-1,pages=totalPages();
+    if(tp<pages){userIdle=0;clearTimeout(pT);pg=tp;updatePage(true);pT=setTimeout(autoP,30e3)}
+    return;
+  }
+  if(e.key==='ArrowUp'){e.preventDefault();userIdle=0;clearTimeout(pT);const pages=totalPages();pg=(pg-1+pages)%pages;updatePage(true);pT=setTimeout(autoP,30e3)}
+  if(e.key==='ArrowDown'){e.preventDefault();userIdle=0;clearTimeout(pT);const pages=totalPages();pg=(pg+1)%pages;updatePage(true);pT=setTimeout(autoP,30e3)}
   if(e.key==='ArrowRight'){e.preventDefault();sw((cur+1)%AP.length)}
   if(e.key==='ArrowLeft'){e.preventDefault();sw((cur-1+AP.length)%AP.length)}
 });
@@ -935,38 +1319,50 @@ document.getElementById('pginfo').addEventListener('click',()=>{
     clearTimeout(pT);
     pg=(pg+1)%pages;
     updatePage(true);
-    pT=setTimeout(autoP,12e3);
+    pT=setTimeout(autoP,30e3);
   }
 });
 
 /* ═══ INIT ═══ */
 cacheDom();
 initHeaderCells();
+initNav();
 initLayout();
 initBoard();
+fitLayout();
 initDust();
 tick(); setInterval(tick,1e3);
 
 setTimeout(async ()=>{
   await loadAirport(0,false);
+  fitLayout(); /* re-fit after content loaded */
+  requestAnimationFrame(fitLayout); /* and once more after paint */
   fT=setTimeout(rFlip,1500);
-  pT=setTimeout(autoP,12e3);
-},150);
+  pT=setTimeout(autoP,30e3);
+},100);
 
 document.addEventListener('click',()=>initAudio(),{once:true});
 
 /* Refresh flight data every 5 min */
 setInterval(()=>{needsRefresh=true},5*60*1e3);
+/* Live status recompute every 30s — statuses evolve with time */
+setInterval(refreshStatuses,30e3);
 
-/* Debounced resize */
-let _resizeT;
+/* Resize: fast path (every frame) + slow path (debounced rebuild) */
+let _resizeRaf,_resizeT;
 window.addEventListener('resize',()=>{
+  /* Fast: just re-fit cells to new container size — runs every frame, no jank */
+  cancelAnimationFrame(_resizeRaf);
+  _resizeRaf=requestAnimationFrame(fitLayout);
+  /* Slow: check if row count changed, rebuild board if needed */
   clearTimeout(_resizeT);
   _resizeT=setTimeout(async ()=>{
     const oldRows=ROWS;
-    CELL_W=0;CELL_H=0;
     initLayout();
-    if(ROWS!==oldRows) initBoard();
-    await loadAirport(cur,false);
-  },150);
+    if(ROWS!==oldRows){
+      initBoard();
+      fitLayout();
+      await loadAirport(cur,false);
+    }
+  },400);
 });

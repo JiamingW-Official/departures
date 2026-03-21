@@ -1301,22 +1301,25 @@ _elFlights.addEventListener('touchend',e=>{
 },{passive:true});
 
 /* ═══ TRACKPAD / WHEEL ═══ */
-let whlT=0;
+/* Accumulate wheel deltas — only trigger after strong intentional gesture */
+let whlT=0,whlAx=0,whlAy=0,whlReset;
 _elFlights.addEventListener('wheel',e=>{
-  if(Date.now()-whlT<300)return;
-  const ax=Math.abs(e.deltaX),ay=Math.abs(e.deltaY);
-  /* Horizontal swipe → switch airport */
-  if(ax>ay&&ax>15){
-    whlT=Date.now();
-    e.preventDefault();
+  e.preventDefault();
+  whlAx+=e.deltaX;whlAy+=e.deltaY;
+  clearTimeout(whlReset);
+  whlReset=setTimeout(()=>{whlAx=0;whlAy=0},200);
+  if(Date.now()-whlT<500)return;
+  const ax=Math.abs(whlAx),ay=Math.abs(whlAy);
+  /* Horizontal swipe → switch airport (needs strong intent) */
+  if(ax>ay*2&&ax>80){
+    whlT=Date.now();whlAx=0;whlAy=0;
     if(e.deltaX>0) sw((cur+1)%AP.length);
     else sw((cur-1+AP.length)%AP.length);
     return;
   }
   /* Vertical scroll → page up/down */
-  if(ay>ax&&ay>15){
-    whlT=Date.now();
-    e.preventDefault();
+  if(ay>ax*2&&ay>80){
+    whlT=Date.now();whlAx=0;whlAy=0;
     userIdle=0;clearTimeout(pT);
     const pages=totalPages();
     if(e.deltaY>0) pg=(pg+1)%pages;

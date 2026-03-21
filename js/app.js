@@ -15,7 +15,7 @@ let userIdle=0; /* auto-page pauses while user active */
 const boardRows={colL:[], colR:[]};
 
 /* ═══ CACHED DOM REFS ═══ */
-let _elClock,_elDate,_elTz,_elPg,_elApIata,_elApName,_elApSub,_elNavF,_elNavS,_elFlights;
+let _elClock,_elDate,_elTz,_elPg,_elApIata,_elApName,_elNavF,_elNavS,_elFlights;
 function cacheDom(){
   _elClock=document.getElementById('clock');
   _elDate=document.getElementById('date-info');
@@ -23,7 +23,6 @@ function cacheDom(){
   _elPg=document.getElementById('pginfo');
   _elApIata=document.getElementById('ap-iata');
   _elApName=document.getElementById('ap-name');
-  _elApSub=document.getElementById('ap-sub');
   _elNavF=document.getElementById('nav-fixed');
   _elNavS=document.getElementById('nav-scroll');
   _elFlights=document.getElementById('flights');
@@ -543,7 +542,6 @@ async function loadAirport(idx,animate){
   const a=AP[idx];
   for(let i=0;i<3;i++) hFlip(_iataCells[i],a.c[i]||' ',180+i*50);
   _elApName.textContent=a.n;
-  _elApSub.textContent='';
   document.title=a.c+' \u2014 DEPARTURES \u00b7 ARRIVALS';
 
   /* Loading state */

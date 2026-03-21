@@ -200,6 +200,13 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
 .live-dot-sm{width:5px;height:5px;border-radius:50%;background:#44c060;flex-shrink:0;
   box-shadow:0 0 4px rgba(68,192,96,.3);animation:livePulse 2.5s ease-in-out infinite}
 
+/* Nearest airport button */
+#nav .near-btn{color:#4890c0;border-color:rgba(72,144,192,.15);
+  background:rgba(72,144,192,.03);letter-spacing:2px}
+#nav .near-btn:hover{color:#68b0e0;background:rgba(72,144,192,.06)}
+#nav .near-btn.act{color:#a0d0f0;border-color:rgba(72,144,192,.25);
+  background:rgba(72,144,192,.08);font-weight:700}
+
 .nav-div{width:1px;height:clamp(14px,1.5vh,22px);background:rgba(255,240,200,.05);flex-shrink:0}
 
 .nav-stats{display:flex;align-items:center;gap:clamp(8px,.6vw,14px);flex-shrink:0;

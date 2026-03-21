@@ -5,6 +5,7 @@ let cur=0, pg=0;
 let favs=JSON.parse(localStorage.getItem('fav_airports')||'[]');
 let recent=JSON.parse(localStorage.getItem('recent_airports')||'[]');
 let _clockCells=[], _iataCells=[];
+let nearestAp=-1; /* index of geo-nearest airport */
 let depF=[], arrF=[];
 let fT, pT;
 let flipQueue=null;
@@ -744,10 +745,16 @@ function renderNav(idx){
     const ago=lastFetchTime?Math.floor((Date.now()-lastFetchTime)/60000):0;
     document.getElementById('nb-live-txt').textContent=ago>0?'LIVE \u00b7 '+ago+'M':'LIVE';
   }
-  /* Recent airports */
+  /* Nearest airport + Recent airports */
   const rc=document.getElementById('nb-recent');
   let rh='';
+  /* Show nearest airport with pin icon */
+  if(nearestAp>=0){
+    const nc=AP[nearestAp].c;
+    rh+=`<button onclick="sw(${nearestAp})" class="near-btn${nearestAp===idx?' act':''}" title="NEAREST AIRPORT">\u25C9 ${nc}</button>`;
+  }
   recent.slice(0,5).forEach(c=>{
+    if(nearestAp>=0&&c===AP[nearestAp].c)return; /* skip if same as nearest */
     const fi=AP.findIndex(a=>a.c===c);
     if(fi<0)return;
     rh+=`<button onclick="sw(${fi})" class="${fi===idx?'act':''}">${c}</button>`;
@@ -1313,7 +1320,7 @@ function geoInit(){
   navigator.geolocation.getCurrentPosition(
     pos=>{
       const idx=findNearestAirport(pos.coords.latitude,pos.coords.longitude);
-      if(idx>=0){cur=idx;trackRecent(AP[idx].c)}
+      if(idx>=0){nearestAp=idx;cur=idx;trackRecent(AP[idx].c)}
       loadDefault();
     },
     ()=>loadDefault(),

@@ -1308,17 +1308,17 @@ _elFlights.addEventListener('wheel',e=>{
   whlAx+=e.deltaX;whlAy+=e.deltaY;
   clearTimeout(whlReset);
   whlReset=setTimeout(()=>{whlAx=0;whlAy=0},200);
-  if(Date.now()-whlT<500)return;
+  if(Date.now()-whlT<800)return;
   const ax=Math.abs(whlAx),ay=Math.abs(whlAy);
   /* Horizontal swipe → switch airport (needs strong intent) */
-  if(ax>ay*2&&ax>80){
+  if(ax>ay*3&&ax>200){
     whlT=Date.now();whlAx=0;whlAy=0;
     if(e.deltaX>0) sw((cur+1)%AP.length);
     else sw((cur-1+AP.length)%AP.length);
     return;
   }
   /* Vertical scroll → page up/down */
-  if(ay>ax*2&&ay>80){
+  if(ay>ax*3&&ay>200){
     whlT=Date.now();whlAx=0;whlAy=0;
     userIdle=0;clearTimeout(pT);
     const pages=totalPages();

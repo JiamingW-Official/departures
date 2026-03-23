@@ -326,6 +326,8 @@ body{font-family:'Courier New',Courier,monospace;display:flex;flex-direction:col
 .sf-chip:hover{color:#6a6050;background:rgba(255,240,200,.03)}
 .sf-chip.act{background:rgba(216,208,176,.08);color:#d8d0b0;border-color:rgba(216,208,176,.15)}
 .si-match{color:#b09028;font-weight:700}
+.si-cur{color:#6a6250;margin-right:4px;font-size:clamp(8px,.55vw,11px)}
+.si-fav{color:#c8a830;margin-right:4px;font-size:clamp(8px,.55vw,10px)}
 .si-near{font-size:clamp(7px,.45vw,9px);color:#4890c0;letter-spacing:1.5px;font-weight:700;
   margin-left:auto;flex-shrink:0}
 .si-region{font-size:clamp(7px,.45vw,9px);color:#3a3428;letter-spacing:1px;margin-left:auto;flex-shrink:0}

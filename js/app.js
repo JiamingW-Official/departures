@@ -981,6 +981,18 @@ function highlightMatch(text,q){
   if(idx<0)return text;
   return text.substring(0,idx)+'<span class="si-match">'+text.substring(idx,idx+q.length)+'</span>'+text.substring(idx+q.length);
 }
+/* Pre-build city→airport index for city name search */
+const _cityIdx={};
+(function(){AP.forEach((a,i)=>{
+  /* Extract city from name: first word(s) before airport qualifier */
+  const words=a.n.split(/[\s\-]+/);
+  for(let w=1;w<=Math.min(3,words.length);w++){
+    const city=words.slice(0,w).join(' ');
+    if(!_cityIdx[city])_cityIdx[city]=[];
+    if(!_cityIdx[city].includes(i))_cityIdx[city].push(i);
+  }
+})})();
+
 function filterSearch(q){
   q=q.toUpperCase().trim();
   srchItems=[];
@@ -1011,20 +1023,32 @@ function filterSearch(q){
   }else{
     /* Score-based fuzzy ranking */
     const scored=[];
+    const seen=new Set();
+    /* City name lookup — O(1) */
+    for(const city in _cityIdx){
+      if(city.includes(q)){
+        _cityIdx[city].forEach(i=>{if(!seen.has(i)){seen.add(i);scored.push({idx:i,score:45})}});
+      }
+    }
     AP.forEach((a,i)=>{
+      if(seen.has(i)){/* already matched by city — boost if code also matches */
+        if(a.c===q)scored.find(s=>s.idx===i).score=100;
+        else if(a.c.startsWith(q))scored.find(s=>s.idx===i).score=80;
+        return;
+      }
       let score=0;
-      const code=a.c,name=a.n.toUpperCase(),sub=(a.s||'').toUpperCase();
+      const code=a.c,name=a.n.toUpperCase();
       if(code===q)score=100;
       else if(code.startsWith(q))score=80;
       else if(code.includes(q))score=60;
       else if(name.includes(q))score=40;
-      else if(sub.includes(q))score=20;
-      if(score){
-        if(i===nearestAp)score+=7;
-        if(favs.includes(a.c))score+=5;
-        if(recent.includes(a.c))score+=3;
-        scored.push({idx:i,score});
-      }
+      if(score){seen.add(i);scored.push({idx:i,score})}
+    });
+    /* Boost nearest/fav/recent */
+    scored.forEach(s=>{
+      if(s.idx===nearestAp)s.score+=7;
+      if(favs.includes(AP[s.idx].c))s.score+=5;
+      if(recent.includes(AP[s.idx].c))s.score+=3;
     });
     scored.sort((a,b)=>b.score-a.score);
     scored.forEach(s=>srchItems.push({idx:s.idx}));
@@ -1037,7 +1061,7 @@ function renderSearch(){
   const selCount=countSelectable(srchItems);
   if(!selCount){
     box.innerHTML='<div class="search-empty">NO AIRPORTS FOUND</div>';
-    return;
+    updateSearchCount(0);return;
   }
   const q=document.getElementById('search-input').value.toUpperCase().trim();
   let si=0;
@@ -1047,16 +1071,27 @@ function renderSearch(){
     const cls=si===srchIdx?'search-item active':'search-item';
     const region=AP_REGION[a.c]||'';
     const isFav=favs.includes(a.c);
+    const isCur=item.idx===cur;
     const codeTxt=highlightMatch(a.c,q);
     const nameTxt=highlightMatch(a.n,q);
-    const favIcon=isFav?'<span style="color:#c8a830;margin-right:4px">\u2605</span>':'';
-    const nearTag=item.idx===nearestAp?'<span class="si-near">\u25C9 NEAREST</span>':'';
-    const regionTag=region&&!q&&item.idx!==nearestAp?`<span class="si-region">${region}</span>`:'';
+    const icons=
+      (isCur?'<span class="si-cur">\u25B8</span>':'')+
+      (isFav?'<span class="si-fav">\u2605</span>':'');
+    const tags=
+      (item.idx===nearestAp?'<span class="si-near">\u25C9 NEAREST</span>':'')+
+      (region&&!q&&item.idx!==nearestAp?`<span class="si-region">${region}</span>`:'');
     si++;
-    return`<div class="${cls}" onmousedown="selectSearch(${item.idx})">${favIcon}<span class="si-code">${codeTxt}</span><span class="si-name">${nameTxt}</span>${nearTag}${regionTag}</div>`;
+    return`<div class="${cls}" onmousedown="selectSearch(${item.idx})">${icons}<span class="si-code">${codeTxt}</span><span class="si-name">${nameTxt}</span>${tags}</div>`;
   }).join('');
+  updateSearchCount(q?selCount:0);
   const act=box.querySelector('.active');
   if(act)act.scrollIntoView({block:'nearest'});
+}
+function updateSearchCount(n){
+  const hint=document.getElementById('search-hint');
+  if(!hint)return;
+  if(n>0)hint.textContent=n+' AIRPORTS \u00b7 \u2191\u2193 navigate \u00b7 Enter select \u00b7 Esc close';
+  else hint.textContent='\u2191\u2193 navigate \u00b7 PgUp/Dn fast \u00b7 Tab switch \u00b7 Enter select \u00b7 Esc close';
 }
 function selectSearch(idx){
   closeSearch();
@@ -1067,18 +1102,22 @@ function filterFlights(q){
   q=q.toUpperCase().trim();
   srchFlRes=[];
   const curCode=AP[cur].c;
-  const local=[];
-  for(let i=0;i<depF.length;i++){
+  const deps=[],arrs=[];
+  /* Limit: show max 30 per section when no query */
+  const limit=q?999:30;
+  for(let i=0;i<depF.length&&deps.length<limit;i++){
     const fl=depF[i];
     if(srchFlFilter!=='ALL'&&fl.sr!==srchFlFilter)continue;
-    if(!q||matchFlight(fl,q,curCode)) local.push({fl,idx:i,col:'L',apIdx:-1,from:curCode,to:fl.ds.trim()});
+    if(!q||matchFlight(fl,q,curCode)) deps.push({fl,idx:i,col:'L',apIdx:-1,from:curCode,to:fl.ds.trim()});
   }
-  for(let i=0;i<arrF.length;i++){
+  for(let i=0;i<arrF.length&&arrs.length<limit;i++){
     const fl=arrF[i];
     if(srchFlFilter!=='ALL'&&fl.sr!==srchFlFilter)continue;
-    if(!q||matchFlight(fl,q,curCode)) local.push({fl,idx:i,col:'R',apIdx:-1,from:fl.ds.trim(),to:curCode});
+    if(!q||matchFlight(fl,q,curCode)) arrs.push({fl,idx:i,col:'R',apIdx:-1,from:fl.ds.trim(),to:curCode});
   }
-  srchFlRes=local;
+  /* Group by departure/arrival */
+  if(deps.length){srchFlRes.push({divider:'DEPARTURES \u00b7 '+deps.length});srchFlRes.push(...deps)}
+  if(arrs.length){srchFlRes.push({divider:'ARRIVALS \u00b7 '+arrs.length});srchFlRes.push(...arrs)}
   if(q.length>=2){
     const global=searchFamous(q);
     if(global.length){
@@ -1092,12 +1131,8 @@ function filterFlights(q){
 
 function matchFlight(fl,q,curCode){
   const al=fl.al.trim(),fn=fl.fn.trim(),ds=fl.ds.trim(),sr=fl.sr;
-  if(al.includes(q)||(al+fn).includes(q)||fn.includes(q)||ds.includes(q)||sr.includes(q))return true;
-  /* Also match origin/destination IATA codes */
-  if(curCode&&curCode.includes(q))return true;
-  /* Match IATA code in DS_MAP by destination name */
-  for(const code in DS_MAP){if(code.includes(q)&&DS_MAP[code][0].toUpperCase()===ds)return true}
-  return false;
+  return al.includes(q)||(al+fn).includes(q)||fn.includes(q)||ds.includes(q)||sr.includes(q)||
+    (curCode&&curCode.includes(q));
 }
 
 function searchFamous(q){
